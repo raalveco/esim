@@ -3,6 +3,54 @@ declare(strict_types=1);
 
 session_start();
 
+function loadDotEnv(string $envPath): array
+{
+    if (!is_file($envPath) || !is_readable($envPath)) {
+        return [];
+    }
+
+    $lines = file($envPath, FILE_IGNORE_NEW_LINES);
+    if ($lines === false) {
+        return [];
+    }
+
+    $env = [];
+    foreach ($lines as $line) {
+        $line = trim((string) $line);
+        if ($line === '' || str_starts_with($line, '#') || str_starts_with($line, ';')) {
+            continue;
+        }
+
+        if (str_starts_with($line, 'export ')) {
+            $line = trim(substr($line, 7));
+        }
+
+        $separatorPos = strpos($line, '=');
+        if ($separatorPos === false) {
+            continue;
+        }
+
+        $key = trim(substr($line, 0, $separatorPos));
+        if ($key === '') {
+            continue;
+        }
+
+        $value = trim(substr($line, $separatorPos + 1));
+        $hasDoubleQuotes = str_starts_with($value, '"') && str_ends_with($value, '"');
+        $hasSingleQuotes = str_starts_with($value, "'") && str_ends_with($value, "'");
+        if ($hasDoubleQuotes || $hasSingleQuotes) {
+            $value = substr($value, 1, -1);
+            if ($hasDoubleQuotes) {
+                $value = stripcslashes($value);
+            }
+        }
+
+        $env[$key] = $value;
+    }
+
+    return $env;
+}
+
 $regionsPath = __DIR__ . DIRECTORY_SEPARATOR . 'regions.json';
 $data = [
     'countries' => [],
@@ -38,19 +86,13 @@ $ownedCompaniesCache = [
     'companies' => [],
 ];
 
-$credentialsPath = __DIR__ . DIRECTORY_SEPARATOR . 'credentials.php';
-$credentials = [];
-if (is_file($credentialsPath)) {
-    $loadedCredentials = require $credentialsPath;
-    if (is_array($loadedCredentials)) {
-        $credentials = $loadedCredentials;
-    }
-}
+$envPath = __DIR__ . DIRECTORY_SEPARATOR . '.env';
+$env = loadDotEnv($envPath);
 
-$credentialsUserId = trim((string) ($credentials['userId'] ?? ''));
-$credentialsMuId = trim((string) ($credentials['muId'] ?? ''));
+$credentialsUserId = trim((string) ($env['ESIM_USER_ID'] ?? ''));
+$credentialsMuId = trim((string) ($env['ESIM_MU_ID'] ?? ''));
 
-$credentialsUsername = (string) ($credentials['username'] ?? '');
+$credentialsUsername = (string) ($env['ESIM_USERNAME'] ?? '');
 $cookieDir = __DIR__ . DIRECTORY_SEPARATOR . 'tmp';
 $cookieSuffix = preg_replace('/[^a-zA-Z0-9_-]/', '_', strtolower($credentialsUsername));
 if ($cookieSuffix === null || $cookieSuffix === '') {
