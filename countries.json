@@ -1,0 +1,410 @@
+{
+    "generatedAt": "2026-04-17T03:21:08+00:00",
+    "countryCount": 101,
+    "countries": [
+        {
+            "id": "130",
+            "name": "Afganistán"
+        },
+        {
+            "id": "55",
+            "name": "Albania"
+        },
+        {
+            "id": "3",
+            "name": "Alemania"
+        },
+        {
+            "id": "62",
+            "name": "Arabia Saudita"
+        },
+        {
+            "id": "64",
+            "name": "Argelia"
+        },
+        {
+            "id": "24",
+            "name": "Argentina"
+        },
+        {
+            "id": "131",
+            "name": "Armenia"
+        },
+        {
+            "id": "35",
+            "name": "Australia"
+        },
+        {
+            "id": "48",
+            "name": "Austria"
+        },
+        {
+            "id": "132",
+            "name": "Azerbaiyán"
+        },
+        {
+            "id": "52",
+            "name": "Bielorrusia"
+        },
+        {
+            "id": "162",
+            "name": "Birmania"
+        },
+        {
+            "id": "121",
+            "name": "Bolivia"
+        },
+        {
+            "id": "13",
+            "name": "Bosnia y Herzegovina"
+        },
+        {
+            "id": "23",
+            "name": "Brasil"
+        },
+        {
+            "id": "10",
+            "name": "Bulgaria"
+        },
+        {
+            "id": "40",
+            "name": "Bélgica"
+        },
+        {
+            "id": "119",
+            "name": "Camboya"
+        },
+        {
+            "id": "27",
+            "name": "Canadá"
+        },
+        {
+            "id": "45",
+            "name": "Chile"
+        },
+        {
+            "id": "156",
+            "name": "Chipre"
+        },
+        {
+            "id": "46",
+            "name": "Colombia"
+        },
+        {
+            "id": "31",
+            "name": "Corea del Sur"
+        },
+        {
+            "id": "144",
+            "name": "Costa Rica"
+        },
+        {
+            "id": "12",
+            "name": "Croacia"
+        },
+        {
+            "id": "147",
+            "name": "Cuba"
+        },
+        {
+            "id": "50",
+            "name": "Dinamarca"
+        },
+        {
+            "id": "26",
+            "name": "EE.UU"
+        },
+        {
+            "id": "122",
+            "name": "Ecuador"
+        },
+        {
+            "id": "57",
+            "name": "Egipto"
+        },
+        {
+            "id": "152",
+            "name": "El Salvador"
+        },
+        {
+            "id": "110",
+            "name": "Emiratos Árabes Unidos"
+        },
+        {
+            "id": "49",
+            "name": "Eslovaquia"
+        },
+        {
+            "id": "21",
+            "name": "Eslovenia"
+        },
+        {
+            "id": "5",
+            "name": "España"
+        },
+        {
+            "id": "53",
+            "name": "Estonia"
+        },
+        {
+            "id": "54",
+            "name": "Filipinas"
+        },
+        {
+            "id": "37",
+            "name": "Finlandia"
+        },
+        {
+            "id": "4",
+            "name": "Francia"
+        },
+        {
+            "id": "133",
+            "name": "Georgia"
+        },
+        {
+            "id": "14",
+            "name": "Grecia"
+        },
+        {
+            "id": "127",
+            "name": "Guatemala"
+        },
+        {
+            "id": "125",
+            "name": "Honduras"
+        },
+        {
+            "id": "8",
+            "name": "Hungría"
+        },
+        {
+            "id": "34",
+            "name": "India"
+        },
+        {
+            "id": "29",
+            "name": "Indonesia"
+        },
+        {
+            "id": "112",
+            "name": "Irak"
+        },
+        {
+            "id": "38",
+            "name": "Irlanda"
+        },
+        {
+            "id": "30",
+            "name": "Irán"
+        },
+        {
+            "id": "165",
+            "name": "Islandia"
+        },
+        {
+            "id": "33",
+            "name": "Israel"
+        },
+        {
+            "id": "7",
+            "name": "Italia"
+        },
+        {
+            "id": "58",
+            "name": "Japón"
+        },
+        {
+            "id": "115",
+            "name": "Jordán"
+        },
+        {
+            "id": "128",
+            "name": "Kazajstán"
+        },
+        {
+            "id": "155",
+            "name": "Kuwait"
+        },
+        {
+            "id": "135",
+            "name": "Laos"
+        },
+        {
+            "id": "71",
+            "name": "Libia"
+        },
+        {
+            "id": "19",
+            "name": "Lituania"
+        },
+        {
+            "id": "148",
+            "name": "Líbano"
+        },
+        {
+            "id": "42",
+            "name": "Malasia"
+        },
+        {
+            "id": "72",
+            "name": "Marruecos"
+        },
+        {
+            "id": "150",
+            "name": "Moldavia"
+        },
+        {
+            "id": "145",
+            "name": "Mongolia"
+        },
+        {
+            "id": "25",
+            "name": "México"
+        },
+        {
+            "id": "120",
+            "name": "Nepal"
+        },
+        {
+            "id": "142",
+            "name": "Nicaragua"
+        },
+        {
+            "id": "43",
+            "name": "Noruega"
+        },
+        {
+            "id": "41",
+            "name": "Pakistán"
+        },
+        {
+            "id": "143",
+            "name": "Panamá"
+        },
+        {
+            "id": "123",
+            "name": "Paraguay"
+        },
+        {
+            "id": "36",
+            "name": "Países Bajos"
+        },
+        {
+            "id": "44",
+            "name": "Perú"
+        },
+        {
+            "id": "1",
+            "name": "Polonia"
+        },
+        {
+            "id": "28",
+            "name": "Porcelana"
+        },
+        {
+            "id": "18",
+            "name": "Portugal"
+        },
+        {
+            "id": "149",
+            "name": "Puerto Rico"
+        },
+        {
+            "id": "6",
+            "name": "Reino Unido"
+        },
+        {
+            "id": "51",
+            "name": "República Checa"
+        },
+        {
+            "id": "126",
+            "name": "República Dominicana"
+        },
+        {
+            "id": "15",
+            "name": "República de Macedonia"
+        },
+        {
+            "id": "9",
+            "name": "Rumania"
+        },
+        {
+            "id": "2",
+            "name": "Rusia"
+        },
+        {
+            "id": "11",
+            "name": "Serbia"
+        },
+        {
+            "id": "111",
+            "name": "Siria"
+        },
+        {
+            "id": "17",
+            "name": "Suecia"
+        },
+        {
+            "id": "39",
+            "name": "Suiza"
+        },
+        {
+            "id": "63",
+            "name": "Tailandia"
+        },
+        {
+            "id": "32",
+            "name": "Taiwán"
+        },
+        {
+            "id": "22",
+            "name": "Turquía"
+        },
+        {
+            "id": "80",
+            "name": "Túnez"
+        },
+        {
+            "id": "16",
+            "name": "Ucrania"
+        },
+        {
+            "id": "124",
+            "name": "Uruguay"
+        },
+        {
+            "id": "138",
+            "name": "Uzbekistán"
+        },
+        {
+            "id": "56",
+            "name": "Venezuela"
+        },
+        {
+            "id": "60",
+            "name": "Vietnam"
+        },
+        {
+            "id": "61",
+            "name": "Yemen"
+        },
+        {
+            "id": "59",
+            "name": "bangladesh"
+        },
+        {
+            "id": "20",
+            "name": "letonia"
+        },
+        {
+            "id": "47",
+            "name": "montenegro"
+        },
+        {
+            "id": "137",
+            "name": "turkmenistán"
+        }
+    ]
+}
