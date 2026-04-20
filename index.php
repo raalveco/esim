@@ -3,20 +3,84 @@ declare(strict_types=1);
 
 session_start();
 
-$credentialsPath = __DIR__ . DIRECTORY_SEPARATOR . 'credentials.php';
-$credentials = [];
-if (is_file($credentialsPath)) {
-	$loadedCredentials = require $credentialsPath;
-	if (is_array($loadedCredentials)) {
-		$credentials = $loadedCredentials;
+function loadDotEnv(string $envPath): array
+{
+	if (!is_file($envPath) || !is_readable($envPath)) {
+		return [];
 	}
+
+	$lines = file($envPath, FILE_IGNORE_NEW_LINES);
+	if ($lines === false) {
+		return [];
+	}
+
+	$env = [];
+	foreach ($lines as $line) {
+		$line = trim((string) $line);
+		if ($line === '' || str_starts_with($line, '#') || str_starts_with($line, ';')) {
+			continue;
+		}
+
+		if (str_starts_with($line, 'export ')) {
+			$line = trim(substr($line, 7));
+		}
+
+		$separatorPos = strpos($line, '=');
+		if ($separatorPos === false) {
+			continue;
+		}
+
+		$key = trim(substr($line, 0, $separatorPos));
+		if ($key === '') {
+			continue;
+		}
+
+		$value = trim(substr($line, $separatorPos + 1));
+		$hasDoubleQuotes = str_starts_with($value, '"') && str_ends_with($value, '"');
+		$hasSingleQuotes = str_starts_with($value, "'") && str_ends_with($value, "'");
+		if ($hasDoubleQuotes || $hasSingleQuotes) {
+			$value = substr($value, 1, -1);
+			if ($hasDoubleQuotes) {
+				$value = stripcslashes($value);
+			}
+		}
+
+		$env[$key] = $value;
+	}
+
+	return $env;
 }
 
-$baseUrl = (string) ($credentials['baseUrl'] ?? 'https://vara.e-sim.org/index.html');
-$username = (string) ($credentials['username'] ?? '');
-$password = (string) ($credentials['password'] ?? '');
-$userId = (string) ($credentials['userId'] ?? '');
-$allowAutoRegistration = !empty($credentials['allowAutoRegistration']);
+function envToBool(?string $value, bool $default = false): bool
+{
+	if ($value === null) {
+		return $default;
+	}
+
+	$normalized = strtolower(trim($value));
+	if ($normalized === '') {
+		return $default;
+	}
+
+	if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+		return true;
+	}
+
+	if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+		return false;
+	}
+
+	return $default;
+}
+
+$envPath = __DIR__ . DIRECTORY_SEPARATOR . '.env';
+$env = loadDotEnv($envPath);
+
+$baseUrl = (string) ($env['ESIM_BASE_URL'] ?? 'https://vara.e-sim.org/index.html');
+$username = (string) ($env['ESIM_USERNAME'] ?? '');
+$password = (string) ($env['ESIM_PASSWORD'] ?? '');
+$userId = (string) ($env['ESIM_USER_ID'] ?? '');
+$allowAutoRegistration = envToBool($env['ESIM_ALLOW_AUTO_REGISTRATION'] ?? null, false);
 
 $cookieDir = __DIR__ . DIRECTORY_SEPARATOR . 'tmp';
 if (!is_dir($cookieDir)) {
