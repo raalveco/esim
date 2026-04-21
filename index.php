@@ -5346,7 +5346,7 @@ function extractDailiesFromJsonPayload(string $html, string $baseUrl): array
 			'isCompleted' => $isCompleted,
 			'buttonText' => $status === 'UNCLAIMED' ? 'Reclamar' : ($status === 'FINISHED' ? 'Completada' : 'Ir'),
 			'isClaimable' => $isClaimable,
-			'claimUrl' => $defaultClaimUrl,
+			'claimUrl' => $dailyId !== '' ? ('https://vara.e-sim.org/missionCenter/claimDailyReward?id=' . rawurlencode($dailyId)) : $defaultClaimUrl,
 			'className' => 'daily-json ' . strtolower($status),
 			'rewards' => $rewards,
 		];
@@ -5487,135 +5487,54 @@ function submitDailyMissionClaim($ch, string $refererUrl, array $defaultHeaders,
 		'error' => '',
 	];
 
-	if ($dailyId !== '') {
-		$exactClaimUrl = resolveUrl($safeReferer, 'missionCenter/claimDailyReward?id=' . rawurlencode($dailyId));
-		$exactGetStep = curlRequest($ch, $exactClaimUrl, [
-			CURLOPT_POST => false,
-			CURLOPT_HTTPGET => true,
-			CURLOPT_HTTPHEADER => array_merge($defaultHeaders, [
-				'Referer: ' . $safeReferer,
-				'Accept: application/json, text/plain, */*',
-			]),
-		]);
-
-		$exactBody = (string) ($exactGetStep['body'] ?? '');
-		$exactLower = strtolower($exactBody);
-		$exactHttpOk = $exactGetStep['errno'] === 0
-			&& (int) ($exactGetStep['statusCode'] ?? 0) >= 200
-			&& (int) ($exactGetStep['statusCode'] ?? 0) < 400;
-		$exactSuccess = preg_match('/(dailyrewardtaken|received your daily reward|reward was sent|you received)/i', $exactBody) === 1;
-		$exactAlready = preg_match('/(dailyrewardalreadytaken|already\s+taken|already\s+claimed|reward\s+was\s+already\s+taken)/i', $exactBody) === 1;
-		$exactError = preg_match('/(dailyrewarderror|error\s+occured|forbidden|not\s+logged|captcha|invalid|failed|exception)/i', $exactBody) === 1;
-
-		if ($exactHttpOk && ($exactSuccess || $exactAlready || (!$exactError && trim($exactLower) !== ''))) {
-			return [
-				'attempted' => true,
-				'saved' => true,
-				'reason' => $exactAlready ? 'dailies-reward-already-claimed' : ($exactSuccess ? 'dailies-reward-claimed' : 'dailies-claim-processed'),
-				'httpStatus' => (int) ($exactGetStep['statusCode'] ?? 0),
-				'url' => (string) ($exactGetStep['effectiveUrl'] ?: $exactClaimUrl),
-				'claimUrl' => $exactClaimUrl,
-				'dailyId' => $dailyId,
-				'responseSnippet' => trim(substr(compactNodeText($exactBody), 0, 260)),
-				'error' => (string) ($exactGetStep['error'] ?? ''),
-			];
-		}
-	}
-
-	$candidateUrls = [];
-	if ($dailyId !== '') {
-		$candidateUrls[] = resolveUrl($safeReferer, 'missionCenter/claimDailyReward?id=' . rawurlencode($dailyId));
-	}
-	if (trim($claimUrl) !== '') {
-		$candidateUrls[] = trim($claimUrl);
-	}
-	$candidateUrls[] = resolveUrl($safeReferer, 'missionCenter/dailies');
-	$candidateUrls[] = resolveUrl($safeReferer, 'missionCenter/claimReward');
-	$candidateUrls[] = resolveUrl($safeReferer, 'missionCenter/claimPrize');
-	if ($dailyId !== '') {
-		$candidateUrls[] = resolveUrl($safeReferer, 'missionCenter/dailies?action=claimReward&dailyId=' . rawurlencode($dailyId));
-		$candidateUrls[] = resolveUrl($safeReferer, 'missionCenter/dailies?action=claimPrize&dailyId=' . rawurlencode($dailyId));
-	}
-	$candidateUrls = array_values(array_unique(array_filter($candidateUrls, static function ($url): bool {
-		return is_string($url) && trim($url) !== '';
-	})));
-
-	if (empty($candidateUrls)) {
+	if ($dailyId === '') {
+		$result['reason'] = 'dailies-claim-id-missing';
 		return $result;
 	}
 
-	$payloads = [];
-	if ($dailyId !== '') {
-		$payloads[] = ['dailyId' => $dailyId];
-		$payloads[] = ['id' => $dailyId];
-		$payloads[] = ['missionId' => $dailyId];
-		$payloads[] = ['taskId' => $dailyId];
-		$payloads[] = ['daily_id' => $dailyId];
-		$payloads[] = ['claimReward' => $dailyId];
-		$payloads[] = ['claimPrize' => $dailyId];
-		$payloads[] = ['action' => 'claimReward', 'dailyId' => $dailyId];
-		$payloads[] = ['action' => 'claimPrize', 'dailyId' => $dailyId];
-		$payloads[] = ['action' => 'claim', 'dailyId' => $dailyId];
-	} else {
-		$payloads[] = ['action' => 'claimAll'];
-		$payloads[] = ['claimAll' => '1'];
+	$exactClaimUrl = 'https://vara.e-sim.org/missionCenter/claimDailyReward?id=' . rawurlencode($dailyId);
+	$exactGetStep = curlRequest($ch, $exactClaimUrl, [
+		CURLOPT_POST => false,
+		CURLOPT_HTTPGET => true,
+		CURLOPT_HTTPHEADER => array_merge($defaultHeaders, [
+			'Referer: ' . $safeReferer,
+			'Accept: application/json, text/plain, */*',
+		]),
+	]);
+
+	$exactBody = (string) ($exactGetStep['body'] ?? '');
+	$exactLower = strtolower($exactBody);
+	$exactHttpOk = $exactGetStep['errno'] === 0
+		&& (int) ($exactGetStep['statusCode'] ?? 0) >= 200
+		&& (int) ($exactGetStep['statusCode'] ?? 0) < 400;
+	$exactSuccess = preg_match('/(dailyrewardtaken|received your daily reward|reward was sent|you received|success)/i', $exactBody) === 1;
+	$exactAlready = preg_match('/(dailyrewardalreadytaken|already\s+taken|already\s+claimed|reward\s+was\s+already\s+taken)/i', $exactBody) === 1;
+	$exactError = preg_match('/(dailyrewarderror|error\s+occured|forbidden|not\s+logged|captcha|invalid|failed|exception)/i', $exactBody) === 1;
+
+	$result['httpStatus'] = (int) ($exactGetStep['statusCode'] ?? 0);
+	$result['url'] = (string) ($exactGetStep['effectiveUrl'] ?: $exactClaimUrl);
+	$result['claimUrl'] = $exactClaimUrl;
+	$result['responseSnippet'] = trim(substr(compactNodeText($exactBody), 0, 260));
+	$result['error'] = (string) ($exactGetStep['error'] ?? '');
+
+	if (!$exactHttpOk) {
+		$result['reason'] = (int) ($exactGetStep['errno'] ?? 0) !== 0 ? 'dailies-claim-request-error' : 'dailies-claim-http-error';
+		return $result;
 	}
 
-	$postHeaders = [
-		'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
-		'Origin: https://vara.e-sim.org',
-		'Referer: ' . $safeReferer,
-		'X-Requested-With: XMLHttpRequest',
-		'Accept: application/json, text/plain, */*',
-	];
-
-	$lastStep = null;
-	foreach ($candidateUrls as $targetUrl) {
-		foreach ($payloads as $payload) {
-			$step = curlRequest($ch, $targetUrl, [
-				CURLOPT_POST => true,
-				CURLOPT_HTTPGET => false,
-				CURLOPT_POSTFIELDS => http_build_query($payload),
-				CURLOPT_HTTPHEADER => array_merge($defaultHeaders, $postHeaders),
-			]);
-			$lastStep = $step;
-
-			$responseBody = (string) ($step['body'] ?? '');
-			$responseLower = strtolower($responseBody);
-			$httpOk = $step['errno'] === 0
-				&& (int) ($step['statusCode'] ?? 0) >= 200
-				&& (int) ($step['statusCode'] ?? 0) < 400;
-			$successText = preg_match('/(dailyrewardtaken|received your daily reward|reward was sent|you received|claim(ed)?\s+success)/i', $responseBody) === 1;
-			$alreadyText = preg_match('/(dailyrewardalreadytaken|already\s+taken|already\s+claimed|reward\s+was\s+already\s+taken)/i', $responseBody) === 1;
-			$errorText = preg_match('/(dailyrewarderror|error\s+occured|forbidden|not\s+logged|captcha|invalid|failed|exception)/i', $responseBody) === 1;
-
-			if ($httpOk && ($successText || $alreadyText || (!$errorText && trim($responseLower) !== ''))) {
-				return [
-					'attempted' => true,
-					'saved' => true,
-					'reason' => $alreadyText ? 'dailies-reward-already-claimed' : ($successText ? 'dailies-reward-claimed' : 'dailies-claim-processed'),
-					'httpStatus' => (int) ($step['statusCode'] ?? 0),
-					'url' => (string) ($step['effectiveUrl'] ?: $targetUrl),
-					'claimUrl' => trim($claimUrl),
-					'dailyId' => $dailyId,
-					'responseSnippet' => trim(substr(compactNodeText($responseBody), 0, 260)),
-					'error' => (string) ($step['error'] ?? ''),
-				];
-			}
-		}
+	if ($exactAlready) {
+		$result['saved'] = true;
+		$result['reason'] = 'dailies-reward-already-claimed';
+		return $result;
 	}
 
-	if (is_array($lastStep)) {
-		$lastBody = (string) ($lastStep['body'] ?? '');
-		$result['httpStatus'] = (int) ($lastStep['statusCode'] ?? 0);
-		$result['url'] = (string) ($lastStep['effectiveUrl'] ?? '');
-		$result['responseSnippet'] = trim(substr(compactNodeText($lastBody), 0, 260));
-		$result['error'] = (string) ($lastStep['error'] ?? '');
-		$result['reason'] = (int) ($lastStep['errno'] ?? 0) !== 0
-			? 'dailies-claim-request-error'
-			: 'dailies-claim-rejected';
+	if ($exactSuccess || (!$exactError && trim($exactLower) !== '')) {
+		$result['saved'] = true;
+		$result['reason'] = $exactSuccess ? 'dailies-reward-claimed' : 'dailies-claim-processed';
+		return $result;
 	}
 
+	$result['reason'] = 'dailies-claim-rejected';
 	return $result;
 }
 
