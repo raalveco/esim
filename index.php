@@ -296,6 +296,8 @@ $confirmMailCodeRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'confirm-mail-code';
 $partyStatusCheckRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'party-status-check';
+$partyInspectRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+	&& (string) ($_POST['action'] ?? '') === 'party-inspect-url';
 $productMarketRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'product-market-load';
 $productMarketOffersRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
@@ -588,6 +590,22 @@ $partyStatusCheckResult = [
 	'httpStatus' => 0,
 	'url' => 'https://vara.e-sim.org/myParty.html',
 	'needsEmailConfirmation' => false,
+	'responseSnippet' => '',
+	'error' => '',
+];
+$partyInspectResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => '',
+	'partyName' => '',
+	'joinDetected' => false,
+	'hasJoinForm' => false,
+	'hasJoinButton' => false,
+	'joinActionUrl' => '',
+	'joinMethod' => '',
+	'joinIndicator' => '',
 	'responseSnippet' => '',
 	'error' => '',
 ];
@@ -1633,6 +1651,72 @@ if ($fatalError === '' && $partyStatusCheckRequested) {
 		'responseSnippet' => trim(substr($partyBodyCompact, 0, 260)),
 		'error' => (string) ($partyStep['error'] ?? ''),
 	];
+}
+
+if ($fatalError === '' && $partyInspectRequested) {
+	$partyUrlRaw = trim((string) ($_POST['party_url'] ?? ''));
+	$partyUrl = normalizePartyPageUrl($partyUrlRaw, (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'));
+
+	$partyInspectResult = [
+		'attempted' => true,
+		'saved' => false,
+		'reason' => $partyUrl === '' ? 'party-url-invalid' : 'party-inspect-request-error',
+		'httpStatus' => 0,
+		'url' => $partyUrl,
+		'partyName' => '',
+		'joinDetected' => false,
+		'hasJoinForm' => false,
+		'hasJoinButton' => false,
+		'joinActionUrl' => '',
+		'joinMethod' => '',
+		'joinIndicator' => '',
+		'responseSnippet' => '',
+		'error' => '',
+	];
+
+	if ($partyUrl !== '') {
+		$partyStep = curlRequest($ch, $partyUrl, [
+			CURLOPT_POST => false,
+			CURLOPT_HTTPGET => true,
+			CURLOPT_HTTPHEADER => $headers,
+		]);
+
+		$partyBody = (string) ($partyStep['body'] ?? '');
+		$partyHttpOk = $partyStep['errno'] === 0
+			&& (int) ($partyStep['statusCode'] ?? 0) >= 200
+			&& (int) ($partyStep['statusCode'] ?? 0) < 400
+			&& trim($partyBody) !== '';
+		$joinInfo = $partyHttpOk
+			? extractPartyJoinAvailabilityFromHtml($partyBody, (string) ($partyStep['effectiveUrl'] ?: $partyUrl))
+			: [
+				'partyName' => '',
+				'joinDetected' => false,
+				'hasJoinForm' => false,
+				'hasJoinButton' => false,
+				'joinActionUrl' => '',
+				'joinMethod' => '',
+				'joinIndicator' => '',
+			];
+
+		$partyInspectResult = [
+			'attempted' => true,
+			'saved' => $partyHttpOk,
+			'reason' => !$partyHttpOk
+				? ((int) ($partyStep['errno'] ?? 0) !== 0 ? 'party-inspect-request-error' : 'party-inspect-http-error')
+				: (!empty($joinInfo['joinDetected']) ? 'party-join-control-found' : 'party-join-control-not-found'),
+			'httpStatus' => (int) ($partyStep['statusCode'] ?? 0),
+			'url' => (string) ($partyStep['effectiveUrl'] ?: $partyUrl),
+			'partyName' => (string) ($joinInfo['partyName'] ?? ''),
+			'joinDetected' => !empty($joinInfo['joinDetected']),
+			'hasJoinForm' => !empty($joinInfo['hasJoinForm']),
+			'hasJoinButton' => !empty($joinInfo['hasJoinButton']),
+			'joinActionUrl' => (string) ($joinInfo['joinActionUrl'] ?? ''),
+			'joinMethod' => (string) ($joinInfo['joinMethod'] ?? ''),
+			'joinIndicator' => (string) ($joinInfo['joinIndicator'] ?? ''),
+			'responseSnippet' => trim(substr(compactNodeText($partyBody), 0, 280)),
+			'error' => (string) ($partyStep['error'] ?? ''),
+		];
+	}
 }
 
 if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? ''))) {
@@ -2928,6 +3012,15 @@ $_SESSION['curl_last_login'] = [
 		'httpStatus' => (int) ($partyStatusCheckResult['httpStatus'] ?? 0),
 		'url' => (string) ($partyStatusCheckResult['url'] ?? ''),
 		'needsEmailConfirmation' => (bool) ($partyStatusCheckResult['needsEmailConfirmation'] ?? false),
+	],
+	'party_inspect_result' => [
+		'attempted' => (bool) ($partyInspectResult['attempted'] ?? false),
+		'saved' => (bool) ($partyInspectResult['saved'] ?? false),
+		'reason' => (string) ($partyInspectResult['reason'] ?? ''),
+		'httpStatus' => (int) ($partyInspectResult['httpStatus'] ?? 0),
+		'url' => (string) ($partyInspectResult['url'] ?? ''),
+		'partyName' => (string) ($partyInspectResult['partyName'] ?? ''),
+		'joinDetected' => (bool) ($partyInspectResult['joinDetected'] ?? false),
 	],
 	'storage_money_result' => [
 		'attempted' => (bool) ($storageMoneyResult['attempted'] ?? false),
@@ -4354,6 +4447,115 @@ function normalizeCompanyPageUrl(string $rawUrl, string $fallbackBaseUrl = 'http
 	}
 
 	return 'https://' . $host . '/company.html?id=' . $id;
+}
+
+function normalizePartyPageUrl(string $rawUrl, string $fallbackBaseUrl = 'https://vara.e-sim.org/index.html'): string
+{
+	$raw = trim(html_entity_decode($rawUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+	if ($raw === '') {
+		return '';
+	}
+
+	$host = 'vara.e-sim.org';
+	if (preg_match('/^https?:\/\/([^\/]+)/i', $raw, $hostMatch) === 1) {
+		$candidateHost = strtolower(trim((string) ($hostMatch[1] ?? '')));
+		if (preg_match('/^[a-z0-9.-]+\.e-sim\.org$/', $candidateHost) === 1) {
+			$host = $candidateHost;
+		}
+	}
+
+	if (preg_match('/^\d+$/', $raw) === 1) {
+		return 'https://' . $host . '/party.html?id=' . $raw;
+	}
+
+	$resolved = preg_match('/^https?:\/\//i', $raw) === 1
+		? $raw
+		: resolveUrl($fallbackBaseUrl, $raw);
+
+	if (preg_match('/^https?:\/\/([^\/]+)/i', $resolved, $resolvedHostMatch) === 1) {
+		$candidateHost = strtolower(trim((string) ($resolvedHostMatch[1] ?? '')));
+		if (preg_match('/^[a-z0-9.-]+\.e-sim\.org$/', $candidateHost) === 1) {
+			$host = $candidateHost;
+		}
+	}
+
+	$id = '';
+	if (preg_match('/[?&]id=(\d+)/i', $resolved, $idMatch) === 1) {
+		$id = (string) ($idMatch[1] ?? '');
+	}
+
+	if ($id === '') {
+		return '';
+	}
+
+	return 'https://' . $host . '/party.html?id=' . $id;
+}
+
+function extractPartyJoinAvailabilityFromHtml(string $html, string $baseUrl): array
+{
+	$result = [
+		'partyName' => '',
+		'joinDetected' => false,
+		'hasJoinForm' => false,
+		'hasJoinButton' => false,
+		'joinActionUrl' => '',
+		'joinMethod' => '',
+		'joinIndicator' => '',
+	];
+
+	if (trim($html) === '') {
+		return $result;
+	}
+
+	$dom = new DOMDocument();
+	libxml_use_internal_errors(true);
+	$dom->loadHTML($html);
+	libxml_clear_errors();
+	$xpath = new DOMXPath($dom);
+
+	$partyTitleNode = $xpath->query('//h1[1]')->item(0);
+	if ($partyTitleNode instanceof DOMElement) {
+		$result['partyName'] = compactNodeText((string) $partyTitleNode->textContent);
+	}
+
+	$formNodes = $xpath->query('//form[contains(translate(@action, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "join") or .//input[@name="action" and contains(translate(@value, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "join")]]');
+	if ($formNodes && $formNodes->length > 0) {
+		$formNode = $formNodes->item(0);
+		if ($formNode instanceof DOMElement) {
+			$result['hasJoinForm'] = true;
+			$actionRaw = trim((string) $formNode->getAttribute('action'));
+			$result['joinActionUrl'] = $actionRaw !== '' ? resolveUrl($baseUrl, $actionRaw) : '';
+			$method = strtoupper(trim((string) $formNode->getAttribute('method')));
+			$result['joinMethod'] = $method !== '' ? $method : 'POST';
+			$result['joinIndicator'] = 'join-form';
+		}
+	}
+
+	if (!$result['hasJoinForm']) {
+		$buttonNodes = $xpath->query('//button[contains(translate(normalize-space(.), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "join") or contains(translate(@class, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "join") or contains(translate(@onclick, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "join")] | //a[contains(translate(normalize-space(.), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "join") or contains(translate(@href, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "joinParty") or contains(translate(@onclick, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "join")] | //input[@type="submit" and contains(translate(@value, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "join")]');
+		if ($buttonNodes && $buttonNodes->length > 0) {
+			$buttonNode = $buttonNodes->item(0);
+			if ($buttonNode instanceof DOMElement) {
+				$result['hasJoinButton'] = true;
+				$hrefRaw = trim((string) $buttonNode->getAttribute('href'));
+				if ($hrefRaw !== '') {
+					$result['joinActionUrl'] = resolveUrl($baseUrl, $hrefRaw);
+				}
+				$result['joinIndicator'] = 'join-button';
+			}
+		}
+	}
+
+	if (!$result['hasJoinForm'] && !$result['hasJoinButton']) {
+		$rawLower = strtolower($html);
+		if (str_contains($rawLower, 'join party') || str_contains($rawLower, 'join this party') || str_contains($rawLower, 'joinparty')) {
+			$result['joinIndicator'] = 'join-keyword-only';
+		}
+	}
+
+	$result['joinDetected'] = $result['hasJoinForm'] || $result['hasJoinButton'];
+
+	return $result;
 }
 
 function normalizeRegionPageUrl(string $rawUrl, string $fallbackBaseUrl = 'https://vara.e-sim.org/index.html'): string
@@ -8749,6 +8951,19 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			<span class="section-meta">GET: https://vara.e-sim.org/myParty.html</span>
 		</form>
 
+		<?php
+		$partyInspectUrlInput = trim((string) ($_POST['party_url'] ?? ''));
+		if ($partyInspectUrlInput === '') {
+			$partyInspectUrlInput = 'https://vara.e-sim.org/party.html?id=16';
+		}
+		?>
+		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+			<input type="hidden" name="action" value="party-inspect-url">
+			<label for="party_url_input"><strong>URL partido:</strong></label>
+			<input id="party_url_input" type="url" name="party_url" value="<?= htmlspecialchars($partyInspectUrlInput, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="https://vara.e-sim.org/party.html?id=16" required style="min-width:360px;padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
+			<button type="submit" class="train-button">Inspeccionar partido</button>
+		</form>
+
 		<?php $confirmCodeInputValue = trim((string) ($_POST['confirm_mail_code'] ?? '')); ?>
 		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
 			<input type="hidden" name="action" value="confirm-mail-code">
@@ -8807,6 +9022,27 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			</p>
 			<?php if (!empty($partyStatusCheckResult['responseSnippet'])): ?>
 				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $partyStatusCheckResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+		<?php endif; ?>
+
+		<?php if (!empty($partyInspectResult['attempted'])): ?>
+			<p class="<?= !empty($partyInspectResult['joinDetected']) ? 'ok' : 'warn' ?>" style="margin:8px 0 0;">
+				Inspeccion partido: <?= htmlspecialchars((string) ($partyInspectResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= !empty($partyInspectResult['partyName']) ? ' | Partido ' . htmlspecialchars((string) $partyInspectResult['partyName'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($partyInspectResult['url']) ? ' | URL ' . htmlspecialchars((string) $partyInspectResult['url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= isset($partyInspectResult['httpStatus']) ? ' | HTTP ' . (int) $partyInspectResult['httpStatus'] : '' ?>
+				<?= !empty($partyInspectResult['error']) ? ' | Error cURL: ' . htmlspecialchars((string) $partyInspectResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+			<p class="section-meta" style="margin:6px 0 0;">
+				Registro detectado: <?= !empty($partyInspectResult['joinDetected']) ? 'SI' : 'NO' ?>
+				<?= !empty($partyInspectResult['hasJoinForm']) ? ' | Formulario SI' : ' | Formulario NO' ?>
+				<?= !empty($partyInspectResult['hasJoinButton']) ? ' | Boton SI' : ' | Boton NO' ?>
+				<?= !empty($partyInspectResult['joinMethod']) ? ' | Metodo ' . htmlspecialchars((string) $partyInspectResult['joinMethod'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($partyInspectResult['joinActionUrl']) ? ' | Action ' . htmlspecialchars((string) $partyInspectResult['joinActionUrl'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($partyInspectResult['joinIndicator']) ? ' | Indicador ' . htmlspecialchars((string) $partyInspectResult['joinIndicator'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+			<?php if (!empty($partyInspectResult['responseSnippet'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $partyInspectResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
 			<?php endif; ?>
 		<?php endif; ?>
 	</div>
