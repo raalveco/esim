@@ -1,6 +1,6 @@
 {
-    "syncedAt": "2026-04-21T15:08:38+00:00",
-    "syncedAtDisplay": "2026-04-21 15:08:38",
+    "syncedAt": "2026-04-21T15:36:02+00:00",
+    "syncedAtDisplay": "2026-04-21 15:36:02",
     "sourceUrl": "https://vara.e-sim.org/business.html?businessType=COMPANIES",
     "walletBalances": [
         {
@@ -17,8 +17,8 @@
         },
         {
             "flagClass": "xflagsSmall-USA",
-            "amountValue": 4441,
-            "amountDisplay": "4441.00",
+            "amountValue": 4274.5,
+            "amountDisplay": "4274.50",
             "currencyCode": "USD"
         },
         {
@@ -384,18 +384,6 @@
             "businessType": ""
         },
         {
-            "companyId": "1714",
-            "companyName": "GLNH XXIV",
-            "companyUrl": "https://vara.e-sim.org/company.html?id=1714",
-            "regionId": "886",
-            "regionName": "Bekaa",
-            "regionUrl": "https://vara.e-sim.org/region.html?id=886",
-            "countryName": "USA",
-            "productTitle": "Iron",
-            "productImageUrl": "https://vara.e-sim.org/cdn/static/img/productIcons/Rewards/iron.png",
-            "businessType": ""
-        },
-        {
             "companyId": "1715",
             "companyName": "GLNH XXV",
             "companyUrl": "https://vara.e-sim.org/company.html?id=1715",
@@ -429,6 +417,18 @@
             "countryName": "USA",
             "productTitle": "Pistol",
             "productImageUrl": "https://vara.e-sim.org/cdn/static/img/productIcons/Rewards/pistol.png",
+            "businessType": ""
+        },
+        {
+            "companyId": "1714",
+            "companyName": "GLNH XXIV",
+            "companyUrl": "https://vara.e-sim.org/company.html?id=1714",
+            "regionId": "886",
+            "regionName": "Bekaa",
+            "regionUrl": "https://vara.e-sim.org/region.html?id=886",
+            "countryName": "USA",
+            "productTitle": "Iron",
+            "productImageUrl": "https://vara.e-sim.org/cdn/static/img/productIcons/Rewards/iron.png",
             "businessType": ""
         },
         {

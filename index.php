@@ -322,6 +322,10 @@ $equipmentLoadRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'equipment-load';
 $equipmentSellRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'equipment-sell-now';
+$auctionMarketLoadRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+	&& (string) ($_POST['action'] ?? '') === 'auctions-load';
+$auctionBidRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+	&& (string) ($_POST['action'] ?? '') === 'auction-bid-now';
 $freeStarterPackClaimRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'free-starter-pack-claim';
 $trainAttempted = false;
@@ -637,12 +641,15 @@ $storageMoneyResult = [
 	'error' => '',
 ];
 $storageEquipmentUrl = 'https://vara.e-sim.org/storage.html?storageType=EQUIPMENT';
+$storageEquipmentListUrl = 'https://vara.e-sim.org/storage/equipmentList';
 $storageEquipmentResult = [
 	'attempted' => false,
 	'saved' => false,
 	'reason' => 'not-attempted',
 	'httpStatus' => 0,
 	'url' => $storageEquipmentUrl,
+	'inventoryUrl' => $storageEquipmentListUrl,
+	'inventoryHttpStatus' => 0,
 	'bodyLength' => 0,
 	'equipped' => [],
 	'storage' => [],
@@ -698,6 +705,10 @@ $tutorialMissionState = [
 	'hasTutorialBallContainer' => false,
 	'hasMissionDropdown' => false,
 	'hasInProgressPanel' => false,
+	'inProgressTitle' => '',
+	'inProgressDescription' => '',
+	'selectedMissionTitle' => '',
+	'selectedMissionDescription' => '',
 	'inProgressSummary' => '',
 	'hasRewardMissionForm' => false,
 	'rewardActionUrl' => 'https://vara.e-sim.org/betaMissions.html',
@@ -709,6 +720,29 @@ $tutorialMissionState = [
 	'skipFields' => [],
 	'availableMissionCount' => 0,
 	'reason' => 'not-checked',
+];
+$auctionsUrl = 'https://vara.e-sim.org/auctions.html';
+$auctionMarketResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => $auctionsUrl,
+	'bodyLength' => 0,
+	'itemsCount' => 0,
+	'offers' => [],
+	'error' => '',
+];
+$auctionBidResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => '',
+	'auctionId' => '',
+	'price' => '',
+	'responseSnippet' => '',
+	'error' => '',
 ];
 $tutorialMissionCompleteResult = [
 	'attempted' => false,
@@ -1955,33 +1989,134 @@ if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) &&
 		CURLOPT_HTTPGET => true,
 		CURLOPT_HTTPHEADER => $headers,
 	]);
+	$storageEquipmentListStep = curlRequest($ch, $storageEquipmentListUrl, [
+		CURLOPT_POST => false,
+		CURLOPT_HTTPGET => true,
+		CURLOPT_HTTPHEADER => $headers,
+	]);
 
 	$storageEquipmentBody = (string) ($storageEquipmentStep['body'] ?? '');
+	$storageEquipmentListBody = (string) ($storageEquipmentListStep['body'] ?? '');
 	$storageEquipmentBodyLength = strlen($storageEquipmentBody);
+	$storageEquipmentListBodyLength = strlen($storageEquipmentListBody);
 	$storageEquipmentOk = $storageEquipmentStep['errno'] === 0
 		&& (int) ($storageEquipmentStep['statusCode'] ?? 0) >= 200
 		&& (int) ($storageEquipmentStep['statusCode'] ?? 0) < 400
 		&& trim($storageEquipmentBody) !== '';
+	$storageEquipmentListOk = $storageEquipmentListStep['errno'] === 0
+		&& (int) ($storageEquipmentListStep['statusCode'] ?? 0) >= 200
+		&& (int) ($storageEquipmentListStep['statusCode'] ?? 0) < 400
+		&& trim($storageEquipmentListBody) !== '';
+
 	$equipmentInventory = $storageEquipmentOk
 		? extractStorageEquipmentInventoryFromHtml($storageEquipmentBody)
 		: ['equipped' => [], 'storage' => []];
+	$equipmentInventoryList = $storageEquipmentListOk
+		? extractStorageEquipmentInventoryFromHtml($storageEquipmentListBody)
+		: ['equipped' => [], 'storage' => []];
 	$equippedItems = is_array($equipmentInventory['equipped'] ?? null) ? (array) $equipmentInventory['equipped'] : [];
 	$storageItems = is_array($equipmentInventory['storage'] ?? null) ? (array) $equipmentInventory['storage'] : [];
+	$listEquippedItems = is_array($equipmentInventoryList['equipped'] ?? null) ? (array) $equipmentInventoryList['equipped'] : [];
+	$listStorageItems = is_array($equipmentInventoryList['storage'] ?? null) ? (array) $equipmentInventoryList['storage'] : [];
+
+	$equippedById = [];
+	foreach ($equippedItems as $eqItem) {
+		$eqId = trim((string) ($eqItem['id'] ?? ''));
+		if ($eqId !== '') {
+			$equippedById[$eqId] = $eqItem;
+		}
+	}
+	foreach ($listEquippedItems as $eqItem) {
+		$eqId = trim((string) ($eqItem['id'] ?? ''));
+		if ($eqId !== '') {
+			$equippedById[$eqId] = $eqItem;
+		}
+	}
+
+	$storageById = [];
+	foreach ($storageItems as $eqItem) {
+		$eqId = trim((string) ($eqItem['id'] ?? ''));
+		if ($eqId !== '') {
+			$storageById[$eqId] = $eqItem;
+		}
+	}
+	foreach ($listStorageItems as $eqItem) {
+		$eqId = trim((string) ($eqItem['id'] ?? ''));
+		if ($eqId !== '') {
+			$storageById[$eqId] = $eqItem;
+		}
+	}
+
+	$equippedItems = array_values($equippedById);
+	$storageItems = array_values($storageById);
+
+	$storageEquipmentCombinedOk = $storageEquipmentOk || $storageEquipmentListOk;
 
 	$storageEquipmentResult = [
 		'attempted' => true,
-		'saved' => $storageEquipmentOk,
-		'reason' => $storageEquipmentOk
+		'saved' => $storageEquipmentCombinedOk,
+		'reason' => $storageEquipmentCombinedOk
 			? ((count($equippedItems) + count($storageItems)) > 0 ? 'storage-equipment-loaded' : 'storage-equipment-empty')
-			: ($storageEquipmentStep['errno'] !== 0 ? 'storage-equipment-request-error' : 'storage-equipment-http-error'),
+			: (($storageEquipmentStep['errno'] !== 0 || $storageEquipmentListStep['errno'] !== 0) ? 'storage-equipment-request-error' : 'storage-equipment-http-error'),
 		'httpStatus' => (int) ($storageEquipmentStep['statusCode'] ?? 0),
 		'url' => (string) ($storageEquipmentStep['effectiveUrl'] ?: $storageEquipmentUrl),
-		'bodyLength' => $storageEquipmentBodyLength,
+		'inventoryUrl' => (string) ($storageEquipmentListStep['effectiveUrl'] ?: $storageEquipmentListUrl),
+		'inventoryHttpStatus' => (int) ($storageEquipmentListStep['statusCode'] ?? 0),
+		'bodyLength' => $storageEquipmentBodyLength + $storageEquipmentListBodyLength,
 		'equipped' => $equippedItems,
 		'storage' => $storageItems,
 		'equippedCount' => count($equippedItems),
 		'storageCount' => count($storageItems),
-		'error' => (string) ($storageEquipmentStep['error'] ?? ''),
+		'error' => trim((string) ($storageEquipmentStep['error'] ?? '')) !== ''
+			? (string) ($storageEquipmentStep['error'] ?? '')
+			: (string) ($storageEquipmentListStep['error'] ?? ''),
+	];
+}
+
+if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) && $auctionBidRequested) {
+	$auctionId = preg_replace('/\D+/', '', trim((string) ($_POST['auction_id'] ?? '')));
+	$auctionPriceRaw = trim((string) ($_POST['auction_bid_price'] ?? ''));
+	$auctionPrice = preg_replace('/[^0-9.]/', '', str_replace(',', '.', $auctionPriceRaw));
+	$auctionReferer = trim((string) ($_POST['auction_market_url'] ?? $auctionsUrl));
+
+	$auctionBidResult = submitAuctionBid(
+		$ch,
+		$auctionReferer,
+		$headers,
+		[
+			'auctionId' => $auctionId,
+			'price' => $auctionPrice,
+		]
+	);
+}
+
+if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) && ($auctionMarketLoadRequested || $auctionBidRequested)) {
+	$auctionsStep = curlRequest($ch, $auctionsUrl, [
+		CURLOPT_POST => false,
+		CURLOPT_HTTPGET => true,
+		CURLOPT_HTTPHEADER => $headers,
+	]);
+
+	$auctionsBody = (string) ($auctionsStep['body'] ?? '');
+	$auctionsBodyLength = strlen($auctionsBody);
+	$auctionsOk = $auctionsStep['errno'] === 0
+		&& (int) ($auctionsStep['statusCode'] ?? 0) >= 200
+		&& (int) ($auctionsStep['statusCode'] ?? 0) < 400
+		&& trim($auctionsBody) !== '';
+	$auctionOffers = $auctionsOk ? extractAuctionOffersFromHtml($auctionsBody) : [];
+
+	$auctionMarketResult = [
+		'attempted' => true,
+		'saved' => $auctionsOk,
+		'reason' => $auctionsOk
+			? (count($auctionOffers) > 0 ? 'auctions-loaded' : 'auctions-empty')
+			: ($auctionsStep['errno'] !== 0 ? 'auctions-request-error' : 'auctions-http-error'),
+		'httpStatus' => (int) ($auctionsStep['statusCode'] ?? 0),
+		'url' => (string) ($auctionsStep['effectiveUrl'] ?: $auctionsUrl),
+		'bodyLength' => $auctionsBodyLength,
+		'itemsCount' => count($auctionOffers),
+		'offers' => $auctionOffers,
+		'error' => (string) ($auctionsStep['error'] ?? ''),
 	];
 }
 
@@ -3144,6 +3279,8 @@ $_SESSION['curl_last_login'] = [
 		'reason' => (string) ($storageEquipmentResult['reason'] ?? ''),
 		'httpStatus' => (int) ($storageEquipmentResult['httpStatus'] ?? 0),
 		'url' => (string) ($storageEquipmentResult['url'] ?? ''),
+		'inventoryUrl' => (string) ($storageEquipmentResult['inventoryUrl'] ?? ''),
+		'inventoryHttpStatus' => (int) ($storageEquipmentResult['inventoryHttpStatus'] ?? 0),
 		'bodyLength' => (int) ($storageEquipmentResult['bodyLength'] ?? 0),
 		'equippedCount' => (int) ($storageEquipmentResult['equippedCount'] ?? 0),
 		'storageCount' => (int) ($storageEquipmentResult['storageCount'] ?? 0),
@@ -3190,7 +3327,11 @@ $_SESSION['curl_last_login'] = [
 		'checked' => (bool) ($tutorialMissionState['checked'] ?? false),
 		'hasTutorialBallContainer' => (bool) ($tutorialMissionState['hasTutorialBallContainer'] ?? false),
 		'hasMissionDropdown' => (bool) ($tutorialMissionState['hasMissionDropdown'] ?? false),
+		'selectedMissionTitle' => (string) ($tutorialMissionState['selectedMissionTitle'] ?? ''),
+		'selectedMissionDescription' => (string) ($tutorialMissionState['selectedMissionDescription'] ?? ''),
 		'hasInProgressPanel' => (bool) ($tutorialMissionState['hasInProgressPanel'] ?? false),
+		'inProgressTitle' => (string) ($tutorialMissionState['inProgressTitle'] ?? ''),
+		'inProgressDescription' => (string) ($tutorialMissionState['inProgressDescription'] ?? ''),
 		'inProgressSummary' => (string) ($tutorialMissionState['inProgressSummary'] ?? ''),
 		'hasRewardMissionForm' => (bool) ($tutorialMissionState['hasRewardMissionForm'] ?? false),
 		'rewardActionUrl' => (string) ($tutorialMissionState['rewardActionUrl'] ?? ''),
@@ -3217,6 +3358,24 @@ $_SESSION['curl_last_login'] = [
 		'url' => (string) ($tutorialMissionSkipResult['url'] ?? ''),
 		'method' => (string) ($tutorialMissionSkipResult['method'] ?? ''),
 		'httpStatus' => (int) ($tutorialMissionSkipResult['httpStatus'] ?? 0),
+	],
+	'auction_market_result' => [
+		'attempted' => (bool) ($auctionMarketResult['attempted'] ?? false),
+		'saved' => (bool) ($auctionMarketResult['saved'] ?? false),
+		'reason' => (string) ($auctionMarketResult['reason'] ?? ''),
+		'httpStatus' => (int) ($auctionMarketResult['httpStatus'] ?? 0),
+		'url' => (string) ($auctionMarketResult['url'] ?? ''),
+		'bodyLength' => (int) ($auctionMarketResult['bodyLength'] ?? 0),
+		'itemsCount' => (int) ($auctionMarketResult['itemsCount'] ?? 0),
+	],
+	'auction_bid_result' => [
+		'attempted' => (bool) ($auctionBidResult['attempted'] ?? false),
+		'saved' => (bool) ($auctionBidResult['saved'] ?? false),
+		'reason' => (string) ($auctionBidResult['reason'] ?? ''),
+		'httpStatus' => (int) ($auctionBidResult['httpStatus'] ?? 0),
+		'url' => (string) ($auctionBidResult['url'] ?? ''),
+		'auctionId' => (string) ($auctionBidResult['auctionId'] ?? ''),
+		'price' => (string) ($auctionBidResult['price'] ?? ''),
 	],
 	'product_market_result' => [
 		'attempted' => (bool) ($productMarketResult['attempted'] ?? false),
@@ -3926,6 +4085,8 @@ function extractTutorialMissionStateFromHtml(string $html, string $baseUrl): arr
 		'hasTutorialBallContainer' => false,
 		'hasMissionDropdown' => false,
 		'hasInProgressPanel' => false,
+		'inProgressTitle' => '',
+		'inProgressDescription' => '',
 		'inProgressSummary' => '',
 		'hasRewardMissionForm' => false,
 		'rewardActionUrl' => resolveUrl($normalizedBaseUrl, 'betaMissions.html'),
@@ -3965,12 +4126,46 @@ function extractTutorialMissionStateFromHtml(string $html, string $baseUrl): arr
 		if ($missionCandidates instanceof DOMNodeList) {
 			$result['availableMissionCount'] = (int) $missionCandidates->length;
 		}
+
+		$selectedMissionNode = $xpath->query('.//*[self::option[@selected] or self::li[contains(concat(" ", normalize-space(@class), " "), " active ")] or self::a[contains(concat(" ", normalize-space(@class), " "), " active ")]][1]', $missionDropdownNode)->item(0);
+		if (!($selectedMissionNode instanceof DOMElement)) {
+			$selectedMissionNode = $xpath->query('.//*[self::option or self::li or self::a][normalize-space(string(.))!=""][1]', $missionDropdownNode)->item(0);
+		}
+		if ($selectedMissionNode instanceof DOMElement) {
+			$result['selectedMissionTitle'] = compactNodeText((string) $selectedMissionNode->textContent);
+			$selectedDescription = trim((string) $selectedMissionNode->getAttribute('data-description'));
+			if ($selectedDescription === '') {
+				$selectedDescription = trim((string) $selectedMissionNode->getAttribute('title'));
+			}
+			if ($selectedDescription !== '') {
+				$result['selectedMissionDescription'] = trim(substr(compactNodeText(html_entity_decode(strip_tags($selectedDescription), ENT_QUOTES | ENT_HTML5, 'UTF-8')), 0, 320));
+			}
+		}
 	}
 
 	$inProgressNode = $xpath->query('//*[@id="inProgressPanel"]')->item(0);
 	if ($inProgressNode instanceof DOMElement) {
 		$result['hasInProgressPanel'] = true;
+		$titleNode = $xpath->query('.//*[self::h1 or self::h2 or self::h3 or self::h4 or self::strong][normalize-space(string(.))!=""][1]', $inProgressNode)->item(0);
+		if ($titleNode instanceof DOMElement) {
+			$result['inProgressTitle'] = compactNodeText((string) $titleNode->textContent);
+		}
+
+		$descriptionNode = $xpath->query('.//*[self::p or self::div or self::span][normalize-space(string(.))!=""][1]', $inProgressNode)->item(0);
+		if ($descriptionNode instanceof DOMElement) {
+			$result['inProgressDescription'] = trim(substr(compactNodeText((string) $descriptionNode->textContent), 0, 320));
+		}
+
 		$result['inProgressSummary'] = trim(substr(compactNodeText((string) $inProgressNode->textContent), 0, 240));
+		if ($result['inProgressDescription'] === '' && $result['inProgressSummary'] !== '') {
+			$summary = (string) $result['inProgressSummary'];
+			$title = (string) $result['inProgressTitle'];
+			if ($title !== '' && str_starts_with(strtolower($summary), strtolower($title))) {
+				$summary = trim(substr($summary, strlen($title)));
+				$summary = ltrim($summary, ":- ");
+			}
+			$result['inProgressDescription'] = trim(substr($summary, 0, 320));
+		}
 	}
 
 	$rewardFormNode = $xpath->query('//*[@id="rewardMission" and self::form]')->item(0);
@@ -4069,6 +4264,179 @@ function extractTutorialMissionStateFromHtml(string $html, string $baseUrl): arr
 	}
 
 	return $result;
+}
+
+function extractAuctionOffersFromHtml(string $html): array
+{
+	if (trim($html) === '') {
+		return [];
+	}
+
+	$dom = new DOMDocument();
+	libxml_use_internal_errors(true);
+	$dom->loadHTML($html);
+	libxml_clear_errors();
+	$xpath = new DOMXPath($dom);
+
+	$offers = [];
+	$seen = [];
+	$bidButtons = $xpath->query('//button[contains(concat(" ", normalize-space(@class), " "), " bid ") and @data-id]');
+	if (!$bidButtons) {
+		return [];
+	}
+
+	foreach ($bidButtons as $buttonNode) {
+		if (!($buttonNode instanceof DOMElement)) {
+			continue;
+		}
+
+		$auctionId = preg_replace('/\D+/', '', trim((string) $buttonNode->getAttribute('data-id')));
+		if ($auctionId === '' || isset($seen[$auctionId])) {
+			continue;
+		}
+
+		$seen[$auctionId] = true;
+
+		$priceInputNode = $xpath->query('//input[@id="bidPrice' . $auctionId . '"][1]')->item(0);
+		$bidPrice = $priceInputNode instanceof DOMElement
+			? trim((string) $priceInputNode->getAttribute('value'))
+			: '';
+
+		$infoButtonNode = $xpath->query('//button[contains(@onclick, "openOfferModal") and @data-id="' . $auctionId . '"][1]')->item(0);
+		$itemRaw = '';
+		$descriptionRaw = '';
+		$seller = '';
+		$currentPrice = '';
+		$minimalOutbid = '';
+		if ($infoButtonNode instanceof DOMElement) {
+			$itemRaw = trim((string) $infoButtonNode->getAttribute('data-auction-item'));
+			$descriptionRaw = trim((string) $infoButtonNode->getAttribute('data-description'));
+			$seller = trim((string) $infoButtonNode->getAttribute('data-seller'));
+			$currentPrice = trim((string) $infoButtonNode->getAttribute('data-current-price'));
+			$minimalOutbid = trim((string) $infoButtonNode->getAttribute('data-minimal-outbid'));
+		}
+
+		$itemSummary = compactNodeText(html_entity_decode(strip_tags($itemRaw), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+		$description = compactNodeText(html_entity_decode(strip_tags($descriptionRaw), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+
+		$offers[] = [
+			'auctionId' => $auctionId,
+			'bidPrice' => $bidPrice,
+			'minimalOutbid' => $minimalOutbid,
+			'currentPrice' => $currentPrice,
+			'seller' => $seller,
+			'item' => trim(substr($itemSummary, 0, 260)),
+			'description' => trim(substr($description, 0, 320)),
+		];
+
+		if (count($offers) >= 60) {
+			break;
+		}
+	}
+
+	return $offers;
+}
+
+function submitAuctionBid($ch, string $refererUrl, array $defaultHeaders, array $bidData): array
+{
+	$auctionId = preg_replace('/\D+/', '', trim((string) ($bidData['auctionId'] ?? '')));
+	$priceRaw = trim((string) ($bidData['price'] ?? ''));
+	$price = preg_replace('/[^0-9.]/', '', str_replace(',', '.', $priceRaw));
+	$safeReferer = $refererUrl !== '' ? $refererUrl : 'https://vara.e-sim.org/auctions.html';
+
+	$result = [
+		'attempted' => true,
+		'saved' => false,
+		'reason' => 'auction-bid-invalid-data',
+		'httpStatus' => 0,
+		'url' => '',
+		'auctionId' => $auctionId,
+		'price' => $price,
+		'responseSnippet' => '',
+		'error' => '',
+	];
+
+	if (preg_match('/^\d+$/', $auctionId) !== 1 || preg_match('/^\d+(?:\.\d{1,4})?$/', $price) !== 1) {
+		return $result;
+	}
+
+	$targetUrls = [
+		'https://vara.e-sim.org/auctionAction.html?action=BID&id=' . rawurlencode($auctionId) . '&price=' . rawurlencode($price),
+		'https://vara.e-sim.org/auction.html?id=' . rawurlencode($auctionId) . '&action=BID&price=' . rawurlencode($price),
+	];
+
+	$headers = array_merge($defaultHeaders, [
+		'Origin: https://vara.e-sim.org',
+		'Referer: ' . $safeReferer,
+		'X-Requested-With: XMLHttpRequest',
+	]);
+
+	$lastStep = null;
+	$lastTargetUrl = '';
+	foreach ($targetUrls as $targetUrl) {
+		$step = curlRequest($ch, $targetUrl, [
+			CURLOPT_POST => true,
+			CURLOPT_HTTPGET => false,
+			CURLOPT_POSTFIELDS => '',
+			CURLOPT_HTTPHEADER => $headers,
+		]);
+
+		$lastStep = $step;
+		$lastTargetUrl = $targetUrl;
+
+		$body = (string) ($step['body'] ?? '');
+		$bodyLower = strtolower($body);
+		$httpOk = (int) ($step['errno'] ?? 0) === 0
+			&& (int) ($step['statusCode'] ?? 0) >= 200
+			&& (int) ($step['statusCode'] ?? 0) < 400;
+		$blocked = preg_match('/\b(error|failed|forbidden|denied|not\s+logged|invalid|already\s+ended|finished)\b/i', $body) === 1;
+		$insufficient = preg_match('/\b(insufficient|not\s+enough\s+gold|no\s+money)\b/i', $body) === 1;
+		$looksAccepted = str_contains($bodyLower, 'auction') || str_contains($bodyLower, 'bid') || str_contains($bodyLower, 'offers');
+
+		if ($insufficient) {
+			return [
+				'attempted' => true,
+				'saved' => false,
+				'reason' => 'auction-bid-insufficient-funds',
+				'httpStatus' => (int) ($step['statusCode'] ?? 0),
+				'url' => (string) ($step['effectiveUrl'] ?: $targetUrl),
+				'auctionId' => $auctionId,
+				'price' => $price,
+				'responseSnippet' => trim(substr(compactNodeText($body), 0, 280)),
+				'error' => (string) ($step['error'] ?? ''),
+			];
+		}
+
+		if ($httpOk && (!$blocked || $looksAccepted)) {
+			return [
+				'attempted' => true,
+				'saved' => true,
+				'reason' => 'auction-bid-submitted',
+				'httpStatus' => (int) ($step['statusCode'] ?? 0),
+				'url' => (string) ($step['effectiveUrl'] ?: $targetUrl),
+				'auctionId' => $auctionId,
+				'price' => $price,
+				'responseSnippet' => trim(substr(compactNodeText($body), 0, 280)),
+				'error' => (string) ($step['error'] ?? ''),
+			];
+		}
+	}
+
+	$fallbackStatus = (int) (($lastStep['statusCode'] ?? 0));
+	$fallbackErrno = (int) (($lastStep['errno'] ?? 0));
+	$fallbackBody = (string) (($lastStep['body'] ?? ''));
+
+	return [
+		'attempted' => true,
+		'saved' => false,
+		'reason' => $fallbackErrno !== 0 ? 'auction-bid-request-error' : 'auction-bid-rejected',
+		'httpStatus' => $fallbackStatus,
+		'url' => (string) (($lastStep['effectiveUrl'] ?? '') !== '' ? $lastStep['effectiveUrl'] : $lastTargetUrl),
+		'auctionId' => $auctionId,
+		'price' => $price,
+		'responseSnippet' => trim(substr(compactNodeText($fallbackBody), 0, 280)),
+		'error' => (string) (($lastStep['error'] ?? '')),
+	];
 }
 
 function extractLoginForm(string $html, string $baseUrl): array
@@ -6376,6 +6744,12 @@ function extractStorageEquipmentInventoryFromHtml(string $html): array
 	}
 
 	$storageNodes = $xpath->query('//*[@id="equipmentTable"]//div[contains(concat(" ", normalize-space(@class), " "), " equipmentInStorage ")]');
+	if (!($storageNodes instanceof DOMNodeList) || $storageNodes->length === 0) {
+		$storageNodes = $xpath->query('//div[contains(concat(" ", normalize-space(@class), " "), " equipmentInStorage ") and .//button[contains(concat(" ", normalize-space(@class), " "), " putItemOnAuction ")]]');
+	}
+	if (!($storageNodes instanceof DOMNodeList) || $storageNodes->length === 0) {
+		$storageNodes = $xpath->query('//div[contains(concat(" ", normalize-space(@class), " "), " equipmentInStorage ")]');
+	}
 	if ($storageNodes) {
 		foreach ($storageNodes as $storageNode) {
 			if (!($storageNode instanceof DOMElement)) {
@@ -9312,7 +9686,7 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 
 	<div class="section-panel">
 		<h2 class="section-title">Equipos (Storage EQUIPMENT)</h2>
-		<p class="section-meta" style="margin:0;">Consulta manual para listar equipo equipado y adicional, con opcion de subasta.</p>
+		<p class="section-meta" style="margin:0;">Consulta manual para listar equipo equipado y adicional (incluye inventory list), con opcion de subasta.</p>
 		<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
 			<form method="post" style="margin:0;display:inline-flex;align-items:center;">
 				<input type="hidden" name="action" value="equipment-load">
@@ -9337,6 +9711,8 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			<p class="section-meta" style="margin:8px 0 0;">
 				Fuente: <?= htmlspecialchars((string) ($storageEquipmentResult['url'] ?? $storageEquipmentUrl), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
 				<?= isset($storageEquipmentResult['httpStatus']) ? ' | HTTP ' . (int) $storageEquipmentResult['httpStatus'] : '' ?>
+				<?= !empty($storageEquipmentResult['inventoryUrl']) ? ' | Inventory ' . htmlspecialchars((string) ($storageEquipmentResult['inventoryUrl'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= isset($storageEquipmentResult['inventoryHttpStatus']) ? ' | Inventory HTTP ' . (int) $storageEquipmentResult['inventoryHttpStatus'] : '' ?>
 				<?= isset($storageEquipmentResult['equippedCount']) ? ' | Equipados ' . (int) $storageEquipmentResult['equippedCount'] : '' ?>
 				<?= isset($storageEquipmentResult['storageCount']) ? ' | Adicionales ' . (int) $storageEquipmentResult['storageCount'] : '' ?>
 				<?= isset($storageEquipmentResult['bodyLength']) ? ' | HTML ' . number_format((int) $storageEquipmentResult['bodyLength']) . ' bytes' : '' ?>
@@ -9426,6 +9802,84 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			<?php endif; ?>
 		<?php else: ?>
 			<p class="warn" style="margin:8px 0 0;">Todavia no se consultaron equipos. Usa el boton "Consultar equipos".</p>
+		<?php endif; ?>
+	</div>
+
+	<div class="section-panel">
+		<h2 class="section-title">Mercado de Subastas</h2>
+		<p class="section-meta" style="margin:0;">Consulta ofertas activas y permite ofertar desde el panel.</p>
+		<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+			<form method="post" style="margin:0;display:inline-flex;align-items:center;">
+				<input type="hidden" name="action" value="auctions-load">
+				<button type="submit" class="train-button">Consultar mercado de subastas</button>
+			</form>
+		</div>
+
+		<?php if (!empty($auctionBidResult['attempted'])): ?>
+			<p class="<?= !empty($auctionBidResult['saved']) ? 'ok' : 'warn' ?>" style="margin:8px 0 0;">
+				Oferta subasta #<?= htmlspecialchars((string) ($auctionBidResult['auctionId'] ?? '-'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>:
+				<?= htmlspecialchars((string) ($auctionBidResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= isset($auctionBidResult['httpStatus']) ? ' | HTTP ' . (int) $auctionBidResult['httpStatus'] : '' ?>
+				<?= trim((string) ($auctionBidResult['price'] ?? '')) !== '' ? ' | Precio ' . htmlspecialchars((string) $auctionBidResult['price'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($auctionBidResult['error']) ? ' | Error cURL: ' . htmlspecialchars((string) $auctionBidResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+			<?php if (trim((string) ($auctionBidResult['responseSnippet'] ?? '')) !== ''): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $auctionBidResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+		<?php endif; ?>
+
+		<?php if (!empty($auctionMarketResult['attempted'])): ?>
+			<p class="section-meta" style="margin:8px 0 0;">
+				Fuente: <?= htmlspecialchars((string) ($auctionMarketResult['url'] ?? $auctionsUrl), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= isset($auctionMarketResult['httpStatus']) ? ' | HTTP ' . (int) $auctionMarketResult['httpStatus'] : '' ?>
+				<?= isset($auctionMarketResult['itemsCount']) ? ' | Ofertas ' . (int) $auctionMarketResult['itemsCount'] : '' ?>
+				<?= isset($auctionMarketResult['bodyLength']) ? ' | HTML ' . number_format((int) $auctionMarketResult['bodyLength']) . ' bytes' : '' ?>
+			</p>
+
+			<?php if (empty($auctionMarketResult['saved'])): ?>
+				<p class="warn" style="margin:8px 0 0;">No se pudieron cargar subastas (<?= htmlspecialchars((string) ($auctionMarketResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>).</p>
+			<?php elseif (empty($auctionMarketResult['offers']) || !is_array($auctionMarketResult['offers'])): ?>
+				<p class="warn" style="margin:8px 0 0;">No se detectaron ofertas activas para ofertar.</p>
+			<?php else: ?>
+				<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-top:10px;">
+					<?php foreach ((array) ($auctionMarketResult['offers'] ?? []) as $auctionOffer): ?>
+						<?php
+						$auctionId = trim((string) ($auctionOffer['auctionId'] ?? ''));
+						$bidPrice = trim((string) ($auctionOffer['bidPrice'] ?? ''));
+						$minimalOutbid = trim((string) ($auctionOffer['minimalOutbid'] ?? ''));
+						$currentPrice = trim((string) ($auctionOffer['currentPrice'] ?? ''));
+						$seller = trim((string) ($auctionOffer['seller'] ?? ''));
+						$item = trim((string) ($auctionOffer['item'] ?? ''));
+						$description = trim((string) ($auctionOffer['description'] ?? ''));
+						if ($auctionId === '') {
+							continue;
+						}
+						?>
+						<div style="border:1px solid #d7d7d7;border-radius:8px;padding:10px;background:#fff;display:flex;flex-direction:column;gap:8px;">
+							<p style="margin:0 0 4px;"><strong>Subasta #<?= htmlspecialchars($auctionId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></strong></p>
+							<?php if ($item !== ''): ?><p style="margin:0 0 4px;"><strong>Item:</strong> <?= htmlspecialchars($item, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p><?php endif; ?>
+							<?php if ($description !== ''): ?><p style="margin:0 0 4px;"><?= htmlspecialchars($description, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p><?php endif; ?>
+							<p style="margin:0 0 4px;">
+								<strong>Precio sugerido:</strong> <?= htmlspecialchars($bidPrice !== '' ? $bidPrice : '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+								<?= $minimalOutbid !== '' ? ' | Min outbid ' . htmlspecialchars($minimalOutbid, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+								<?= $currentPrice !== '' ? ' | Actual ' . htmlspecialchars($currentPrice, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+							</p>
+							<?php if ($seller !== ''): ?><p style="margin:0 0 6px;"><strong>Vendedor:</strong> <?= htmlspecialchars($seller, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p><?php endif; ?>
+
+							<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0;">
+								<input type="hidden" name="action" value="auction-bid-now">
+								<input type="hidden" name="auction_market_url" value="<?= htmlspecialchars((string) ($auctionMarketResult['url'] ?? $auctionsUrl), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+								<input type="hidden" name="auction_id" value="<?= htmlspecialchars($auctionId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+								<label for="auction_bid_price_<?= htmlspecialchars($auctionId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" class="section-meta">Precio:</label>
+								<input id="auction_bid_price_<?= htmlspecialchars($auctionId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" type="text" name="auction_bid_price" value="<?= htmlspecialchars($bidPrice !== '' ? $bidPrice : ($minimalOutbid !== '' ? $minimalOutbid : '0.01'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" required style="width:110px;padding:6px 8px;border:1px solid #c9c9c9;border-radius:6px;">
+								<button type="submit" class="train-button" style="background:#0d8f49;border-color:#0b7a3e;">Ofertar</button>
+							</form>
+						</div>
+					<?php endforeach; ?>
+				</div>
+			<?php endif; ?>
+		<?php else: ?>
+			<p class="warn" style="margin:8px 0 0;">Todavia no se consulto el mercado de subastas.</p>
 		<?php endif; ?>
 	</div>
 
@@ -9563,7 +10017,11 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 		$tutorialChecked = !empty($tutorialMissionState['checked']);
 		$hasTutorialBallContainer = !empty($tutorialMissionState['hasTutorialBallContainer']);
 		$hasMissionDropdown = !empty($tutorialMissionState['hasMissionDropdown']);
+		$selectedMissionTitle = trim((string) ($tutorialMissionState['selectedMissionTitle'] ?? ''));
+		$selectedMissionDescription = trim((string) ($tutorialMissionState['selectedMissionDescription'] ?? ''));
 		$hasInProgressPanel = !empty($tutorialMissionState['hasInProgressPanel']);
+		$inProgressTitle = trim((string) ($tutorialMissionState['inProgressTitle'] ?? ''));
+		$inProgressDescription = trim((string) ($tutorialMissionState['inProgressDescription'] ?? ''));
 		$inProgressSummary = trim((string) ($tutorialMissionState['inProgressSummary'] ?? ''));
 		$hasRewardMissionForm = !empty($tutorialMissionState['hasRewardMissionForm']);
 		$rewardActionUrl = trim((string) ($tutorialMissionState['rewardActionUrl'] ?? 'https://vara.e-sim.org/betaMissions.html'));
@@ -9613,6 +10071,18 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 
 		<?php if ($inProgressSummary !== ''): ?>
 			<p class="section-meta" style="margin:8px 0 0;"><strong>Mision en progreso:</strong> <?= htmlspecialchars($inProgressSummary, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+		<?php endif; ?>
+		<?php if ($inProgressTitle !== ''): ?>
+			<p class="section-meta" style="margin:6px 0 0;"><strong>Titulo mision:</strong> <?= htmlspecialchars($inProgressTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+		<?php endif; ?>
+		<?php if ($inProgressDescription !== ''): ?>
+			<p class="section-meta" style="margin:6px 0 0;"><strong>Descripcion mision:</strong> <?= htmlspecialchars($inProgressDescription, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+		<?php endif; ?>
+		<?php if ($selectedMissionTitle !== '' && $selectedMissionTitle !== $inProgressTitle): ?>
+			<p class="section-meta" style="margin:6px 0 0;"><strong>Mision seleccionada:</strong> <?= htmlspecialchars($selectedMissionTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+		<?php endif; ?>
+		<?php if ($selectedMissionDescription !== '' && $selectedMissionDescription !== $inProgressDescription): ?>
+			<p class="section-meta" style="margin:6px 0 0;"><strong>Descripcion seleccionada:</strong> <?= htmlspecialchars($selectedMissionDescription, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
 		<?php endif; ?>
 
 		<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
