@@ -76,13 +76,25 @@ if (!is_file($regionsPath)) {
 $npcCachePath = __DIR__ . DIRECTORY_SEPARATOR . 'npc_statistics_cache.json';
 $npcCache = [
     'regions' => [],
+    'ownedRegionsLastSyncedAt' => '',
+    'ownedRegionsLastSyncedAtDisplay' => '',
+    'ownedRegionsLastSyncRegionCount' => 0,
+    'fullSweepLastSyncedAt' => '',
+    'fullSweepLastSyncedAtDisplay' => '',
+    'fullSweepLastSyncRegionCount' => 0,
+    'pendingSweepLastSyncedAt' => '',
+    'pendingSweepLastSyncedAtDisplay' => '',
+    'pendingSweepLastSyncRegionCount' => 0,
 ];
+
+$bulkSyncJobPath = __DIR__ . DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'npc_bulk_sync_job.json';
 
 $ownedCompaniesCachePath = __DIR__ . DIRECTORY_SEPARATOR . 'owned_companies_cache.json';
 $ownedCompaniesCache = [
     'syncedAt' => '',
     'syncedAtDisplay' => '',
     'sourceUrl' => 'https://vara.e-sim.org/business.html?businessType=COMPANIES',
+    'walletBalances' => [],
     'companies' => [],
 ];
 
@@ -138,6 +150,9 @@ if (is_file($ownedCompaniesCachePath)) {
         $ownedCompaniesCache = array_merge($ownedCompaniesCache, $decodedOwnedCompanies);
         if (!is_array($ownedCompaniesCache['companies'] ?? null)) {
             $ownedCompaniesCache['companies'] = [];
+        }
+        if (!is_array($ownedCompaniesCache['walletBalances'] ?? null)) {
+            $ownedCompaniesCache['walletBalances'] = [];
         }
     }
 }
@@ -239,6 +254,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] 
     }
 
     $companiesUrl = 'https://vara.e-sim.org/business.html?businessType=COMPANIES';
+    $moneyStorageUrl = 'https://vara.e-sim.org/storage.html?storageType=MONEY';
     $effectiveCookie = (string) ($npcAuth['cookie'] ?? '');
     $effectiveCookieFile = (string) ($npcAuth['cookieFile'] ?? '');
     if ($effectiveCookieFile === '' && is_string($sharedIndexCookieFile) && $sharedIndexCookieFile !== '') {
@@ -254,12 +270,26 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] 
         if (htmlLooksLikeNotLoggedIn((string) ($fetchResult['body'] ?? ''))) {
             $companySyncMessage = 'La respuesta indica que no hay sesion iniciada. Guarda cookie de sesion para sincronizar empresas.';
         } else {
-            $companies = parseOwnedCompaniesHtml((string) ($fetchResult['body'] ?? ''));
+            $syncBody = (string) ($fetchResult['body'] ?? '');
+            $companies = parseOwnedCompaniesHtml($syncBody);
+            $walletBalances = [];
+
+            $moneyFetchResult = fetchHtmlFromUrl($moneyStorageUrl, $effectiveCookie, $effectiveCookieFile);
+            if (!empty($moneyFetchResult['ok']) && !htmlLooksLikeNotLoggedIn((string) ($moneyFetchResult['body'] ?? ''))) {
+                $walletBalances = parseStorageMoneyBalancesHtml((string) ($moneyFetchResult['body'] ?? ''));
+            }
+
+            if ($walletBalances === []) {
+                // Fallback when storage view changes or fails.
+                $walletBalances = parseSidebarMoneyBalancesHtml($syncBody);
+            }
+
             $companySyncCount = count($companies);
             $ownedCompaniesCache = [
                 'syncedAt' => gmdate('c'),
                 'syncedAtDisplay' => date('Y-m-d H:i:s'),
                 'sourceUrl' => $companiesUrl,
+                'walletBalances' => $walletBalances,
                 'companies' => $companies,
             ];
 
@@ -293,6 +323,826 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] 
 
     header('Location: npcs.php' . ($redirectParams !== [] ? ('?' . http_build_query($redirectParams)) : ''));
     exit;
+}
+
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] ?? '') === 'bulk-region-job-start') {
+    $mode = trim((string) ($_POST['mode'] ?? 'full'));
+    if ($mode !== 'full' && $mode !== 'pending') {
+        $mode = 'full';
+    }
+
+    $selectedRegionIds = [];
+    $rawRegionIds = $_POST['regionIds'] ?? [];
+    if (is_array($rawRegionIds)) {
+        foreach ($rawRegionIds as $rawRegionId) {
+            $regionIdCandidate = trim((string) $rawRegionId);
+            if ($regionIdCandidate !== '') {
+                $selectedRegionIds[$regionIdCandidate] = true;
+            }
+        }
+    } else {
+        $regionIdCandidate = trim((string) $rawRegionIds);
+        if ($regionIdCandidate !== '') {
+            $selectedRegionIds[$regionIdCandidate] = true;
+        }
+    }
+
+    $regionsQueue = [];
+    $seenRegionIds = [];
+    $countriesList = is_array($data['countries'] ?? null) ? (array) $data['countries'] : [];
+    foreach ($countriesList as $country) {
+        if (!is_array($country)) {
+            continue;
+        }
+
+        $countryId = trim((string) ($country['id'] ?? ''));
+
+        $regionsList = is_array($country['regions'] ?? null) ? (array) $country['regions'] : [];
+        foreach ($regionsList as $region) {
+            if (!is_array($region)) {
+                continue;
+            }
+
+            $regionId = trim((string) ($region['id'] ?? ''));
+            if ($regionId === '' || isset($seenRegionIds[$regionId])) {
+                continue;
+            }
+
+            if ($selectedRegionIds !== [] && !isset($selectedRegionIds[$regionId])) {
+                continue;
+            }
+
+            $seenRegionIds[$regionId] = true;
+
+            $regionName = trim((string) ($region['name'] ?? ''));
+            $regionUrl = trim((string) ($region['url'] ?? ''));
+            if ($regionUrl === '') {
+                $regionUrl = 'https://vara.e-sim.org/region.html?id=' . rawurlencode($regionId);
+            }
+            $catalogOwner = trim((string) ($region['currentOwner'] ?? ''));
+
+            if ($mode === 'pending') {
+                $syncMeta = is_array($npcCache['regions'][$regionId] ?? null) ? $npcCache['regions'][$regionId] : null;
+                $syncedNpcs = is_array($syncMeta['npcs'] ?? null) ? (array) $syncMeta['npcs'] : [];
+                $hasWorkedNpc = false;
+                foreach ($syncedNpcs as $npcRow) {
+                    if (is_array($npcRow) && ($npcRow['workedToday'] ?? null) === true) {
+                        $hasWorkedNpc = true;
+                        break;
+                    }
+                }
+
+                if ($hasWorkedNpc) {
+                    continue;
+                }
+            }
+
+            $regionsQueue[] = [
+                'regionId' => $regionId,
+                'regionName' => $regionName,
+                'regionUrl' => $regionUrl,
+                'countryId' => $countryId,
+                'catalogOwner' => $catalogOwner,
+            ];
+        }
+    }
+
+    $job = [
+        'status' => 'running',
+        'mode' => $mode,
+        'startedAt' => gmdate('c'),
+        'startedAtDisplay' => date('Y-m-d H:i:s'),
+        'queue' => $regionsQueue,
+        'total' => count($regionsQueue),
+        'index' => 0,
+        'processed' => 0,
+        'successCount' => 0,
+        'failedCount' => 0,
+        'updatedNpcCount' => 0,
+        'lastError' => '',
+        'failedSamples' => [],
+    ];
+
+    $saved = @file_put_contents(
+        $bulkSyncJobPath,
+        json_encode($job, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)
+    );
+
+    header('Content-Type: application/json; charset=UTF-8');
+    if ($saved === false) {
+        echo json_encode([
+            'ok' => false,
+            'message' => 'No se pudo iniciar el job de barrido.',
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'mode' => $mode,
+        'total' => count($regionsQueue),
+        'message' => count($regionsQueue) > 0
+            ? 'Job iniciado. Regiones en cola: ' . count($regionsQueue) . '.'
+            : 'No hay regiones en cola para este modo.',
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] ?? '') === 'bulk-region-job-step') {
+    $rawJob = is_file($bulkSyncJobPath) ? (string) @file_get_contents($bulkSyncJobPath) : '';
+    $job = $rawJob !== '' ? json_decode($rawJob, true) : null;
+
+    header('Content-Type: application/json; charset=UTF-8');
+    if (!is_array($job)) {
+        echo json_encode([
+            'ok' => false,
+            'done' => true,
+            'message' => 'No hay job activo.',
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    $status = trim((string) ($job['status'] ?? ''));
+    if ($status !== 'running') {
+        echo json_encode([
+            'ok' => true,
+            'done' => true,
+            'mode' => (string) ($job['mode'] ?? ''),
+            'total' => (int) ($job['total'] ?? 0),
+            'processed' => (int) ($job['processed'] ?? 0),
+            'successCount' => (int) ($job['successCount'] ?? 0),
+            'failedCount' => (int) ($job['failedCount'] ?? 0),
+            'updatedNpcCount' => (int) ($job['updatedNpcCount'] ?? 0),
+            'message' => 'Job finalizado.',
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    $queue = is_array($job['queue'] ?? null) ? (array) $job['queue'] : [];
+    $total = (int) ($job['total'] ?? count($queue));
+    $index = (int) ($job['index'] ?? 0);
+    $chunkSize = (int) ($_POST['chunkSize'] ?? 12);
+    if ($chunkSize < 1) {
+        $chunkSize = 1;
+    }
+    if ($chunkSize > 40) {
+        $chunkSize = 40;
+    }
+
+    $effectiveCookie = (string) ($npcAuth['cookie'] ?? '');
+    $effectiveCookieFile = (string) ($npcAuth['cookieFile'] ?? '');
+    if ($effectiveCookieFile === '' && is_string($sharedIndexCookieFile) && $sharedIndexCookieFile !== '') {
+        $effectiveCookieFile = $sharedIndexCookieFile;
+    }
+
+    $ownedCompaniesList = is_array($ownedCompaniesCache['companies'] ?? null) ? (array) $ownedCompaniesCache['companies'] : [];
+    $processedNow = 0;
+    $successNow = 0;
+    $failedNow = 0;
+    $updatedNpcNow = 0;
+    $failedSamplesNow = [];
+
+    while ($index < $total && $processedNow < $chunkSize) {
+        $regionMeta = is_array($queue[$index] ?? null) ? $queue[$index] : [];
+        $index++;
+        $processedNow++;
+
+        $regionId = trim((string) ($regionMeta['regionId'] ?? ''));
+        if ($regionId === '') {
+            $failedNow++;
+            continue;
+        }
+
+        $regionName = trim((string) ($regionMeta['regionName'] ?? ''));
+        $regionUrl = trim((string) ($regionMeta['regionUrl'] ?? ''));
+        $regionCountryId = trim((string) ($regionMeta['countryId'] ?? ''));
+        if ($regionUrl === '') {
+            $regionUrl = 'https://vara.e-sim.org/region.html?id=' . rawurlencode($regionId);
+        }
+        $catalogOwner = trim((string) ($regionMeta['catalogOwner'] ?? ''));
+
+        if ($regionCountryId === '') {
+            $regionCountryId = findRegionCountryIdFromCatalogData($data, $regionId);
+        }
+
+        $npcUrl = 'https://vara.e-sim.org/npcStatistics.html?regionId=' . rawurlencode($regionId);
+        $fetchResult = fetchHtmlFromUrl($npcUrl, $effectiveCookie, $effectiveCookieFile);
+        if (empty($fetchResult['ok']) || htmlLooksLikeNotLoggedIn((string) ($fetchResult['body'] ?? ''))) {
+            $failedNow++;
+            if (count($failedSamplesNow) < 5) {
+                $failedSamplesNow[] = $regionName !== '' ? $regionName : ('#' . $regionId);
+            }
+            continue;
+        }
+
+        $parsedNpc = parseNpcStatisticsHtml((string) ($fetchResult['body'] ?? ''));
+        $npcRows = is_array($parsedNpc['npcs'] ?? null) ? $parsedNpc['npcs'] : [];
+        $ownedCompanyLookup = buildOwnedCompanyLookupForRegion($ownedCompaniesList, $regionId);
+        $npcRows = enrichNpcRowsWithWorkedStatus($npcRows, $effectiveCookie, $effectiveCookieFile, $credentialsUserId, $credentialsMuId, $ownedCompanyLookup);
+        $syncCount = count($npcRows);
+        $maxNpcSalaryInfo = getMaxNpcSalaryInfo($npcRows);
+        $maxNpcSalaryValue = is_array($maxNpcSalaryInfo) && isset($maxNpcSalaryInfo['value']) && is_numeric($maxNpcSalaryInfo['value'])
+            ? (float) $maxNpcSalaryInfo['value']
+            : null;
+        $maxNpcSalaryDisplay = $maxNpcSalaryValue !== null ? number_format($maxNpcSalaryValue, 2, '.', '') : '';
+        $maxNpcSalaryCurrency = is_array($maxNpcSalaryInfo) ? trim((string) ($maxNpcSalaryInfo['currency'] ?? '')) : '';
+        $maxNpcSalaryFlagClass = is_array($maxNpcSalaryInfo)
+            ? sanitizeCssFlagClass((string) ($maxNpcSalaryInfo['flagClass'] ?? ''))
+            : '';
+        $ownerAtSync = trim((string) ($parsedNpc['regionOwner'] ?? ''));
+        $ownerAtSyncFlagClass = trim((string) ($parsedNpc['regionOwnerFlagClass'] ?? ''));
+        $ownerChanged = false;
+        if ($catalogOwner !== '' && $ownerAtSync !== '') {
+            $ownerChanged = normalizeMatchText($catalogOwner) !== normalizeMatchText($ownerAtSync);
+        }
+
+        // En barridos masivos evitamos consultar jobMarket para maximizar rendimiento.
+        $jobMarketUrl = buildJobMarketUrl($regionId, $regionCountryId);
+
+        $npcCache['regions'][$regionId] = [
+            'regionId' => $regionId,
+            'regionName' => $regionName,
+            'regionUrl' => $regionUrl,
+            'countryId' => $regionCountryId,
+            'npcUrl' => $npcUrl,
+            'syncedAt' => gmdate('c'),
+            'syncedAtDisplay' => date('Y-m-d H:i:s'),
+            'npcCount' => $syncCount,
+            'npcs' => $npcRows,
+            'maxNpcSalaryValue' => $maxNpcSalaryValue,
+            'maxNpcSalaryDisplay' => $maxNpcSalaryDisplay,
+            'maxNpcSalaryCurrency' => $maxNpcSalaryCurrency,
+            'maxNpcSalaryFlagClass' => $maxNpcSalaryFlagClass,
+            'jobMarketUrl' => $jobMarketUrl,
+            'jobOfferCount' => 0,
+            'jobOffers' => [],
+            'maxJobOfferValue' => null,
+            'maxJobOfferCurrency' => '',
+            'maxJobOfferFlagClass' => '',
+            'catalogOwner' => $catalogOwner,
+            'ownerAtSync' => $ownerAtSync,
+            'ownerAtSyncFlagClass' => $ownerAtSyncFlagClass,
+            'ownerChanged' => $ownerChanged,
+        ];
+
+        $successNow++;
+        $updatedNpcNow += $syncCount;
+    }
+
+    $job['index'] = $index;
+    $job['processed'] = (int) ($job['processed'] ?? 0) + $processedNow;
+    $job['successCount'] = (int) ($job['successCount'] ?? 0) + $successNow;
+    $job['failedCount'] = (int) ($job['failedCount'] ?? 0) + $failedNow;
+    $job['updatedNpcCount'] = (int) ($job['updatedNpcCount'] ?? 0) + $updatedNpcNow;
+    $job['lastError'] = $failedNow > 0 ? 'Algunas regiones fallaron en este lote.' : '';
+    if ($failedSamplesNow !== []) {
+        $prior = is_array($job['failedSamples'] ?? null) ? (array) $job['failedSamples'] : [];
+        $job['failedSamples'] = array_slice(array_values(array_unique(array_merge($prior, $failedSamplesNow))), 0, 10);
+    }
+
+    $done = $index >= $total;
+    if ($done) {
+        $job['status'] = 'completed';
+        $job['completedAt'] = gmdate('c');
+        $job['completedAtDisplay'] = date('Y-m-d H:i:s');
+
+        $mode = (string) ($job['mode'] ?? 'full');
+        if ($mode === 'pending') {
+            $npcCache['pendingSweepLastSyncedAt'] = (string) $job['completedAt'];
+            $npcCache['pendingSweepLastSyncedAtDisplay'] = (string) $job['completedAtDisplay'];
+            $npcCache['pendingSweepLastSyncRegionCount'] = (int) ($job['successCount'] ?? 0);
+        } else {
+            $npcCache['fullSweepLastSyncedAt'] = (string) $job['completedAt'];
+            $npcCache['fullSweepLastSyncedAtDisplay'] = (string) $job['completedAtDisplay'];
+            $npcCache['fullSweepLastSyncRegionCount'] = (int) ($job['successCount'] ?? 0);
+        }
+    }
+
+    $cacheSaved = @file_put_contents(
+        $npcCachePath,
+        json_encode($npcCache, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)
+    );
+    if ($cacheSaved === false) {
+        $job['status'] = 'failed';
+        $job['lastError'] = 'No se pudo guardar npc_statistics_cache.json.';
+    }
+
+    @file_put_contents(
+        $bulkSyncJobPath,
+        json_encode($job, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)
+    );
+
+    echo json_encode([
+        'ok' => $cacheSaved !== false,
+        'done' => $done,
+        'mode' => (string) ($job['mode'] ?? 'full'),
+        'total' => $total,
+        'processed' => (int) ($job['processed'] ?? 0),
+        'successCount' => (int) ($job['successCount'] ?? 0),
+        'failedCount' => (int) ($job['failedCount'] ?? 0),
+        'updatedNpcCount' => (int) ($job['updatedNpcCount'] ?? 0),
+        'failedSamples' => is_array($job['failedSamples'] ?? null) ? $job['failedSamples'] : [],
+        'message' => $done
+            ? 'Barrido completado. Regiones OK: ' . (int) ($job['successCount'] ?? 0) . '/' . $total . '.'
+            : 'Procesadas ' . (int) ($job['processed'] ?? 0) . '/' . $total . ' regiones...',
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] ?? '') === 'sync-owned-regions-npcs') {
+    $redirectParams = [];
+    $redirectCountry = trim((string) ($_POST['country'] ?? ''));
+    $redirectOwner = trim((string) ($_POST['owner'] ?? ''));
+    $redirectSalaryRange = trim((string) ($_POST['salaryRange'] ?? ''));
+    $redirectOwnedCompany = trim((string) ($_POST['ownedCompany'] ?? ''));
+    $redirectResourceType = $_POST['resourceType'] ?? [];
+    $redirectResourceTypes = [];
+
+    if ($redirectCountry !== '') {
+        $redirectParams['country'] = $redirectCountry;
+    }
+    if ($redirectOwner !== '') {
+        $redirectParams['owner'] = $redirectOwner;
+    }
+    if ($redirectSalaryRange !== '') {
+        $redirectParams['salaryRange'] = $redirectSalaryRange;
+    }
+    if ($redirectOwnedCompany !== '') {
+        $redirectParams['ownedCompany'] = $redirectOwnedCompany;
+    }
+    if (is_array($redirectResourceType)) {
+        foreach ($redirectResourceType as $candidateType) {
+            $candidateType = trim((string) $candidateType);
+            if ($candidateType !== '') {
+                $redirectResourceTypes[$candidateType] = true;
+            }
+        }
+    } else {
+        $candidateType = trim((string) $redirectResourceType);
+        if ($candidateType !== '') {
+            $redirectResourceTypes[$candidateType] = true;
+        }
+    }
+    if ($redirectResourceTypes !== []) {
+        $redirectParams['resourceType'] = array_keys($redirectResourceTypes);
+    }
+
+    $effectiveCookie = (string) ($npcAuth['cookie'] ?? '');
+    $effectiveCookieFile = (string) ($npcAuth['cookieFile'] ?? '');
+    if ($effectiveCookieFile === '' && is_string($sharedIndexCookieFile) && $sharedIndexCookieFile !== '') {
+        $effectiveCookieFile = $sharedIndexCookieFile;
+    }
+
+    $ownedCompaniesList = is_array($ownedCompaniesCache['companies'] ?? null) ? (array) $ownedCompaniesCache['companies'] : [];
+    $regionsToSync = [];
+    foreach ($ownedCompaniesList as $ownedCompany) {
+        if (!is_array($ownedCompany)) {
+            continue;
+        }
+
+        $ownedRegionId = trim((string) ($ownedCompany['regionId'] ?? ''));
+        if ($ownedRegionId === '') {
+            continue;
+        }
+
+        if (!isset($regionsToSync[$ownedRegionId])) {
+            $regionsToSync[$ownedRegionId] = [
+                'regionId' => $ownedRegionId,
+                'regionName' => trim((string) ($ownedCompany['regionName'] ?? '')),
+                'regionUrl' => trim((string) ($ownedCompany['regionUrl'] ?? '')),
+                'catalogOwner' => '',
+            ];
+        }
+    }
+
+    $targetRegionCount = count($regionsToSync);
+    $syncedRegionCount = 0;
+    $totalNpcCount = 0;
+    $failedRegions = [];
+
+    foreach ($regionsToSync as $regionMeta) {
+        $regionId = trim((string) ($regionMeta['regionId'] ?? ''));
+        if ($regionId === '') {
+            continue;
+        }
+
+        $regionName = trim((string) ($regionMeta['regionName'] ?? ''));
+        $regionUrl = trim((string) ($regionMeta['regionUrl'] ?? ''));
+        $regionCountryId = trim((string) ($regionMeta['countryId'] ?? ''));
+        if ($regionUrl === '') {
+            $regionUrl = 'https://vara.e-sim.org/region.html?id=' . rawurlencode($regionId);
+        }
+        $catalogOwner = trim((string) ($regionMeta['catalogOwner'] ?? ''));
+        if ($regionCountryId === '') {
+            $regionCountryId = findRegionCountryIdFromCatalogData($data, $regionId);
+        }
+
+        $npcUrl = 'https://vara.e-sim.org/npcStatistics.html?regionId=' . rawurlencode($regionId);
+        $fetchResult = fetchHtmlFromUrl($npcUrl, $effectiveCookie, $effectiveCookieFile);
+        if (empty($fetchResult['ok'])) {
+            $failedRegions[] = ($regionName !== '' ? $regionName : ('#' . $regionId));
+            continue;
+        }
+
+        if (htmlLooksLikeNotLoggedIn((string) ($fetchResult['body'] ?? ''))) {
+            $failedRegions[] = ($regionName !== '' ? $regionName : ('#' . $regionId));
+            continue;
+        }
+
+        $parsedNpc = parseNpcStatisticsHtml((string) ($fetchResult['body'] ?? ''));
+        $npcRows = is_array($parsedNpc['npcs'] ?? null) ? $parsedNpc['npcs'] : [];
+        $ownedCompanyLookup = buildOwnedCompanyLookupForRegion($ownedCompaniesList, $regionId);
+        $npcRows = enrichNpcRowsWithWorkedStatus($npcRows, $effectiveCookie, $effectiveCookieFile, $credentialsUserId, $credentialsMuId, $ownedCompanyLookup);
+        $syncCount = count($npcRows);
+        $maxNpcSalaryInfo = getMaxNpcSalaryInfo($npcRows);
+        $maxNpcSalaryValue = is_array($maxNpcSalaryInfo) && isset($maxNpcSalaryInfo['value']) && is_numeric($maxNpcSalaryInfo['value'])
+            ? (float) $maxNpcSalaryInfo['value']
+            : null;
+        $maxNpcSalaryDisplay = $maxNpcSalaryValue !== null ? number_format($maxNpcSalaryValue, 2, '.', '') : '';
+        $maxNpcSalaryCurrency = is_array($maxNpcSalaryInfo) ? trim((string) ($maxNpcSalaryInfo['currency'] ?? '')) : '';
+        $maxNpcSalaryFlagClass = is_array($maxNpcSalaryInfo)
+            ? sanitizeCssFlagClass((string) ($maxNpcSalaryInfo['flagClass'] ?? ''))
+            : '';
+        $ownerAtSync = trim((string) ($parsedNpc['regionOwner'] ?? ''));
+        $ownerAtSyncFlagClass = trim((string) ($parsedNpc['regionOwnerFlagClass'] ?? ''));
+        $ownerChanged = false;
+        if ($catalogOwner !== '' && $ownerAtSync !== '') {
+            $ownerChanged = normalizeMatchText($catalogOwner) !== normalizeMatchText($ownerAtSync);
+        }
+
+        $jobMarketUrl = buildJobMarketUrl($regionId, $regionCountryId);
+        $jobOffers = [];
+        $jobOfferCount = 0;
+        $maxJobOfferInfo = null;
+
+        $jobMarketFetch = fetchHtmlFromUrl($jobMarketUrl, $effectiveCookie, $effectiveCookieFile);
+        if (!empty($jobMarketFetch['ok']) && !htmlLooksLikeNotLoggedIn((string) ($jobMarketFetch['body'] ?? ''))) {
+            $jobOffers = parseJobMarketOffersHtml((string) ($jobMarketFetch['body'] ?? ''));
+            $jobOfferCount = count($jobOffers);
+            $maxJobOfferInfo = getMaxJobOfferInfo($jobOffers);
+        }
+
+        $maxJobOfferValue = is_array($maxJobOfferInfo) && isset($maxJobOfferInfo['value']) && is_numeric($maxJobOfferInfo['value'])
+            ? (float) $maxJobOfferInfo['value']
+            : null;
+        $maxJobOfferCurrency = is_array($maxJobOfferInfo) ? trim((string) ($maxJobOfferInfo['currency'] ?? '')) : '';
+        $maxJobOfferFlagClass = is_array($maxJobOfferInfo)
+            ? sanitizeCssFlagClass((string) ($maxJobOfferInfo['flagClass'] ?? ''))
+            : '';
+
+        $npcCache['regions'][$regionId] = [
+            'regionId' => $regionId,
+            'regionName' => $regionName,
+            'regionUrl' => $regionUrl,
+            'countryId' => $regionCountryId,
+            'npcUrl' => $npcUrl,
+            'syncedAt' => gmdate('c'),
+            'syncedAtDisplay' => date('Y-m-d H:i:s'),
+            'npcCount' => $syncCount,
+            'npcs' => $npcRows,
+            'maxNpcSalaryValue' => $maxNpcSalaryValue,
+            'maxNpcSalaryDisplay' => $maxNpcSalaryDisplay,
+            'maxNpcSalaryCurrency' => $maxNpcSalaryCurrency,
+            'maxNpcSalaryFlagClass' => $maxNpcSalaryFlagClass,
+            'jobMarketUrl' => $jobMarketUrl,
+            'jobOfferCount' => $jobOfferCount,
+            'jobOffers' => $jobOffers,
+            'maxJobOfferValue' => $maxJobOfferValue,
+            'maxJobOfferCurrency' => $maxJobOfferCurrency,
+            'maxJobOfferFlagClass' => $maxJobOfferFlagClass,
+            'catalogOwner' => $catalogOwner,
+            'ownerAtSync' => $ownerAtSync,
+            'ownerAtSyncFlagClass' => $ownerAtSyncFlagClass,
+            'ownerChanged' => $ownerChanged,
+        ];
+
+        $syncedRegionCount++;
+        $totalNpcCount += $syncCount;
+    }
+
+    $bulkSyncStatus = 'error';
+    $bulkSyncMessage = 'No se pudo sincronizar regiones de empresas.';
+
+    if ($targetRegionCount === 0) {
+        $bulkSyncMessage = 'No hay regiones de empresas para sincronizar. Primero sincroniza empresas.';
+    } elseif ($syncedRegionCount > 0) {
+        $npcCache['ownedRegionsLastSyncedAt'] = gmdate('c');
+        $npcCache['ownedRegionsLastSyncedAtDisplay'] = date('Y-m-d H:i:s');
+        $npcCache['ownedRegionsLastSyncRegionCount'] = $syncedRegionCount;
+
+        $saved = @file_put_contents(
+            $npcCachePath,
+            json_encode($npcCache, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)
+        );
+
+        if ($saved !== false) {
+            $bulkSyncStatus = 'ok';
+            $bulkSyncMessage = 'Regiones sincronizadas: ' . $syncedRegionCount . '/' . $targetRegionCount . '. NPCs actualizados: ' . $totalNpcCount . '.';
+            if ($failedRegions !== []) {
+                $failedPreview = array_slice($failedRegions, 0, 3);
+                $bulkSyncMessage .= ' Fallaron: ' . implode(', ', $failedPreview) . (count($failedRegions) > 3 ? '...' : '') . '.';
+            }
+        } else {
+            $bulkSyncMessage = 'No se pudo guardar npc_statistics_cache.json.';
+        }
+    } else {
+        $bulkSyncMessage = 'No se pudo sincronizar ninguna region de empresas (0/' . $targetRegionCount . ').';
+    }
+
+    $redirectParams['bulkRegionSyncStatus'] = $bulkSyncStatus;
+    $redirectParams['bulkRegionSyncCount'] = (string) $syncedRegionCount;
+    $redirectParams['bulkRegionSyncTarget'] = (string) $targetRegionCount;
+    $redirectParams['bulkRegionSyncNpcCount'] = (string) $totalNpcCount;
+    $redirectParams['bulkRegionSyncMessage'] = $bulkSyncMessage;
+
+    header('Location: npcs.php' . ($redirectParams !== [] ? ('?' . http_build_query($redirectParams)) : ''));
+    exit;
+}
+
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] ?? '') === 'region-job-offers-load') {
+    $regionId = trim((string) ($_POST['regionId'] ?? ''));
+
+    header('Content-Type: application/json; charset=UTF-8');
+    if ($regionId === '') {
+        echo json_encode([
+            'ok' => false,
+            'message' => 'Region invalida.',
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    $effectiveCookie = (string) ($npcAuth['cookie'] ?? '');
+    $effectiveCookieFile = (string) ($npcAuth['cookieFile'] ?? '');
+    if ($effectiveCookieFile === '' && is_string($sharedIndexCookieFile) && $sharedIndexCookieFile !== '') {
+        $effectiveCookieFile = $sharedIndexCookieFile;
+    }
+
+    $countryId = trim((string) ($_POST['countryId'] ?? ''));
+    if ($countryId === '') {
+        $cachedRegionMeta = is_array($npcCache['regions'][$regionId] ?? null) ? $npcCache['regions'][$regionId] : null;
+        $countryId = is_array($cachedRegionMeta) ? trim((string) ($cachedRegionMeta['countryId'] ?? '')) : '';
+    }
+    if ($countryId === '') {
+        $countryId = findRegionCountryIdFromCatalogData($data, $regionId);
+    }
+
+    $jobMarketUrl = buildJobMarketUrl($regionId, $countryId);
+    $fetchResult = fetchHtmlFromUrl($jobMarketUrl, $effectiveCookie, $effectiveCookieFile);
+    if (empty($fetchResult['ok'])) {
+        $httpStatus = (int) ($fetchResult['httpStatus'] ?? 0);
+        $error = trim((string) ($fetchResult['error'] ?? ''));
+        $message = 'No se pudo consultar jobMarket';
+        if ($httpStatus > 0) {
+            $message .= ' (HTTP ' . $httpStatus . ')';
+        }
+        if ($error !== '') {
+            $message .= ': ' . $error;
+        }
+
+        echo json_encode([
+            'ok' => false,
+            'regionId' => $regionId,
+            'message' => $message,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    if (htmlLooksLikeNotLoggedIn((string) ($fetchResult['body'] ?? ''))) {
+        echo json_encode([
+            'ok' => false,
+            'regionId' => $regionId,
+            'message' => 'Sesion no autenticada para consultar ofertas laborales.',
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    $jobOffers = parseJobMarketOffersHtml((string) ($fetchResult['body'] ?? ''));
+    $jobOfferCount = count($jobOffers);
+    $maxJobOfferInfo = getMaxJobOfferInfo($jobOffers);
+    $maxJobOfferValue = is_array($maxJobOfferInfo) && isset($maxJobOfferInfo['value']) && is_numeric($maxJobOfferInfo['value'])
+        ? (float) $maxJobOfferInfo['value']
+        : null;
+    $maxJobOfferCurrency = is_array($maxJobOfferInfo) ? trim((string) ($maxJobOfferInfo['currency'] ?? '')) : '';
+    $maxJobOfferFlagClass = is_array($maxJobOfferInfo)
+        ? sanitizeCssFlagClass((string) ($maxJobOfferInfo['flagClass'] ?? ''))
+        : '';
+
+    $currentMeta = is_array($npcCache['regions'][$regionId] ?? null) ? (array) $npcCache['regions'][$regionId] : [];
+    if (!isset($currentMeta['regionId']) || trim((string) ($currentMeta['regionId'] ?? '')) === '') {
+        $currentMeta['regionId'] = $regionId;
+    }
+    if (!isset($currentMeta['regionUrl']) || trim((string) ($currentMeta['regionUrl'] ?? '')) === '') {
+        $currentMeta['regionUrl'] = 'https://vara.e-sim.org/region.html?id=' . rawurlencode($regionId);
+    }
+
+    $currentMeta['jobMarketUrl'] = $jobMarketUrl;
+    $currentMeta['countryId'] = $countryId;
+    $currentMeta['jobOfferCount'] = $jobOfferCount;
+    $currentMeta['jobOffers'] = $jobOffers;
+    $currentMeta['maxJobOfferValue'] = $maxJobOfferValue;
+    $currentMeta['maxJobOfferCurrency'] = $maxJobOfferCurrency;
+    $currentMeta['maxJobOfferFlagClass'] = $maxJobOfferFlagClass;
+    $currentMeta['jobOffersSyncedAt'] = gmdate('c');
+    $currentMeta['jobOffersSyncedAtDisplay'] = date('Y-m-d H:i:s');
+
+    $npcCache['regions'][$regionId] = $currentMeta;
+    $saved = @file_put_contents(
+        $npcCachePath,
+        json_encode($npcCache, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)
+    );
+
+    if ($saved === false) {
+        echo json_encode([
+            'ok' => false,
+            'regionId' => $regionId,
+            'message' => 'No se pudo guardar npc_statistics_cache.json.',
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    $message = 'Ofertas consultadas: ' . $jobOfferCount . '.';
+    if ($maxJobOfferValue !== null) {
+        $message .= ' Maximo: ' . number_format($maxJobOfferValue, 2, '.', '') . ($maxJobOfferCurrency !== '' ? (' ' . $maxJobOfferCurrency) : '') . '.';
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'regionId' => $regionId,
+        'jobOfferCount' => $jobOfferCount,
+        'maxJobOfferValue' => $maxJobOfferValue,
+        'maxJobOfferCurrency' => $maxJobOfferCurrency,
+        'message' => "",
+        'companyJobOffersHtml' => renderCompanyRegionJobOffersHtml($currentMeta),
+        'salaryBaseCellHtml' => renderRegionSalaryCellHtml($regionId, $currentMeta, $countryId),
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] ?? '') === 'company-job-offers-manage-load') {
+    $companyId = trim((string) ($_POST['companyId'] ?? ''));
+    $companyUrl = toAbsoluteEsimUrl((string) ($_POST['companyUrl'] ?? ''));
+    $regionId = trim((string) ($_POST['regionId'] ?? ''));
+
+    header('Content-Type: application/json; charset=UTF-8');
+    if ($companyId === '' && $companyUrl === '') {
+        echo json_encode([
+            'ok' => false,
+            'message' => 'Empresa invalida.',
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    if ($companyUrl === '' && $companyId !== '') {
+        $companyUrl = 'https://vara.e-sim.org/company.html?id=' . rawurlencode($companyId);
+    }
+
+    $effectiveCookie = (string) ($npcAuth['cookie'] ?? '');
+    $effectiveCookieFile = (string) ($npcAuth['cookieFile'] ?? '');
+    if ($effectiveCookieFile === '' && is_string($sharedIndexCookieFile) && $sharedIndexCookieFile !== '') {
+        $effectiveCookieFile = $sharedIndexCookieFile;
+    }
+
+    $fetchResult = fetchHtmlFromUrl($companyUrl, $effectiveCookie, $effectiveCookieFile);
+    if (empty($fetchResult['ok'])) {
+        echo json_encode([
+            'ok' => false,
+            'message' => 'No se pudo abrir la empresa para gestionar ofertas.',
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    if (htmlLooksLikeNotLoggedIn((string) ($fetchResult['body'] ?? ''))) {
+        echo json_encode([
+            'ok' => false,
+            'message' => 'Sesion no autenticada para gestionar ofertas.',
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    $forms = parseCompanyJobOfferFormsHtml((string) ($fetchResult['body'] ?? ''));
+    echo json_encode([
+        'ok' => true,
+        'companyId' => $companyId,
+        'manageHtml' => renderCompanyJobOfferManagerHtml($forms, $companyId, $companyUrl, $regionId),
+        'message' => $forms !== [] ? 'Gestor de ofertas cargado.' : 'No se detectaron formularios de ofertas para esta empresa.',
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] ?? '') === 'company-job-offer-submit') {
+    $isAsyncRequest = strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+    $companyId = trim((string) ($_POST['companyId'] ?? ''));
+    $companyUrl = toAbsoluteEsimUrl((string) ($_POST['companyUrl'] ?? ''));
+    $regionId = trim((string) ($_POST['regionId'] ?? ''));
+    $templateRaw = trim((string) ($_POST['formTemplate'] ?? ''));
+    $editableValues = $_POST['editableValues'] ?? [];
+
+    $respond = static function (bool $ok, string $message, array $payload = []) use ($isAsyncRequest): void {
+        if ($isAsyncRequest) {
+            header('Content-Type: application/json; charset=UTF-8');
+            echo json_encode(
+                array_merge([
+                    'ok' => $ok,
+                    'message' => $message,
+                ], $payload),
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+            );
+            exit;
+        }
+
+        $params = [
+            'companyOfferStatus' => $ok ? 'ok' : 'error',
+            'companyOfferMessage' => $message,
+        ];
+        header('Location: npcs.php?' . http_build_query($params));
+        exit;
+    };
+    if ($templateRaw === '') {
+        $respond(false, 'Formulario invalido.');
+    }
+
+    $templateJson = base64_decode($templateRaw, true);
+    $template = is_string($templateJson) ? json_decode($templateJson, true) : null;
+    if (!is_array($template)) {
+        $respond(false, 'No se pudo leer la plantilla del formulario.');
+    }
+
+    $targetActionUrl = toAbsoluteEsimUrl((string) ($template['actionUrl'] ?? ''));
+    $targetMethod = strtoupper(trim((string) ($template['method'] ?? 'POST')));
+    $staticFields = is_array($template['staticFields'] ?? null) ? $template['staticFields'] : [];
+    $editableFields = is_array($template['editableFields'] ?? null) ? $template['editableFields'] : [];
+    $buttonLabel = trim((string) ($template['buttonLabel'] ?? 'Guardar'));
+    $actionType = strtoupper(trim((string) ($template['actionType'] ?? ($staticFields['action'] ?? ''))));
+
+    if ($targetActionUrl === '' || !str_starts_with($targetActionUrl, 'https://vara.e-sim.org/')) {
+        $respond(false, 'Destino de formulario no permitido.');
+    }
+
+    if ($actionType !== '' && !in_array($actionType, ['POST_JOB_OFFER', 'EDIT_JOB_OFFER', 'DELETE_JOB_OFFER'], true)) {
+        $respond(false, 'Accion de oferta no soportada.');
+    }
+
+    $fieldsToSubmit = [];
+    foreach ($staticFields as $fieldName => $fieldValue) {
+        $fieldName = trim((string) $fieldName);
+        if ($fieldName === '') {
+            continue;
+        }
+        $fieldsToSubmit[$fieldName] = (string) $fieldValue;
+    }
+
+    $editableValues = is_array($editableValues) ? $editableValues : [];
+    foreach ($editableFields as $idx => $fieldMeta) {
+        if (!is_array($fieldMeta)) {
+            continue;
+        }
+
+        $fieldName = trim((string) ($fieldMeta['name'] ?? ''));
+        if ($fieldName === '') {
+            continue;
+        }
+
+        $postedValue = array_key_exists((string) $idx, $editableValues)
+            ? (string) $editableValues[(string) $idx]
+            : (array_key_exists($idx, $editableValues) ? (string) $editableValues[$idx] : (string) ($fieldMeta['value'] ?? ''));
+        $fieldsToSubmit[$fieldName] = trim($postedValue);
+    }
+
+    $effectiveCookie = (string) ($npcAuth['cookie'] ?? '');
+    $effectiveCookieFile = (string) ($npcAuth['cookieFile'] ?? '');
+    if ($effectiveCookieFile === '' && is_string($sharedIndexCookieFile) && $sharedIndexCookieFile !== '') {
+        $effectiveCookieFile = $sharedIndexCookieFile;
+    }
+
+    $submitResult = submitEsimFormRequest($targetActionUrl, $targetMethod, $fieldsToSubmit, $effectiveCookie, $effectiveCookieFile);
+    if (empty($submitResult['ok'])) {
+        $respond(false, 'No se pudo enviar la accion de oferta.');
+    }
+
+    if (htmlLooksLikeNotLoggedIn((string) ($submitResult['body'] ?? ''))) {
+        $respond(false, 'Sesion no autenticada al enviar la oferta.');
+    }
+
+    if ($companyUrl === '' && $companyId !== '') {
+        $companyUrl = 'https://vara.e-sim.org/company.html?id=' . rawurlencode($companyId);
+    }
+
+    $refreshResult = fetchHtmlFromUrl($companyUrl, $effectiveCookie, $effectiveCookieFile);
+    $forms = [];
+    if (!empty($refreshResult['ok']) && !htmlLooksLikeNotLoggedIn((string) ($refreshResult['body'] ?? ''))) {
+        $forms = parseCompanyJobOfferFormsHtml((string) ($refreshResult['body'] ?? ''));
+    }
+
+    $finalMessage = ($actionType === 'POST_JOB_OFFER'
+            ? 'Oferta publicada.'
+            : ($actionType === 'EDIT_JOB_OFFER'
+                ? 'Oferta editada.'
+                : ($actionType === 'DELETE_JOB_OFFER' ? 'Oferta eliminada.' : (($buttonLabel !== '' ? $buttonLabel : 'Operacion') . ' ejecutada.'))));
+
+    $respond(true, $finalMessage, [
+        'companyId' => $companyId,
+        'manageHtml' => renderCompanyJobOfferManagerHtml($forms, $companyId, $companyUrl, $regionId),
+    ]);
 }
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] ?? '') === 'sync-region-npcs') {
@@ -344,6 +1194,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] 
     $syncMessage = 'No se pudo sincronizar la region.';
 
     if ($regionId !== '' && $regionUrl !== '') {
+        $regionCountryId = trim((string) ($_POST['countryId'] ?? ''));
+        if ($regionCountryId === '') {
+            $cachedRegionMeta = is_array($npcCache['regions'][$regionId] ?? null) ? $npcCache['regions'][$regionId] : null;
+            $regionCountryId = is_array($cachedRegionMeta) ? trim((string) ($cachedRegionMeta['countryId'] ?? '')) : '';
+        }
+        if ($regionCountryId === '') {
+            $regionCountryId = findRegionCountryIdFromCatalogData($data, $regionId);
+        }
+
         $npcUrl = 'https://vara.e-sim.org/npcStatistics.html?regionId=' . rawurlencode($regionId);
         $effectiveCookie = (string) ($npcAuth['cookie'] ?? '');
         $effectiveCookieFile = (string) ($npcAuth['cookieFile'] ?? '');
@@ -358,7 +1217,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] 
             } else {
             $parsedNpc = parseNpcStatisticsHtml((string) ($fetchResult['body'] ?? ''));
             $npcRows = is_array($parsedNpc['npcs'] ?? null) ? $parsedNpc['npcs'] : [];
-            $npcRows = enrichNpcRowsWithWorkedStatus($npcRows, $effectiveCookie, $effectiveCookieFile, $credentialsUserId, $credentialsMuId);
+
+            $ownedCompaniesList = is_array($ownedCompaniesCache['companies'] ?? null) ? (array) $ownedCompaniesCache['companies'] : [];
+            $ownedCompanyLookup = buildOwnedCompanyLookupForRegion($ownedCompaniesList, $regionId);
+
+            $npcRows = enrichNpcRowsWithWorkedStatus($npcRows, $effectiveCookie, $effectiveCookieFile, $credentialsUserId, $credentialsMuId, $ownedCompanyLookup);
             $syncCount = count($npcRows);
             $maxNpcSalaryInfo = getMaxNpcSalaryInfo($npcRows);
             $maxNpcSalaryValue = is_array($maxNpcSalaryInfo) && isset($maxNpcSalaryInfo['value']) && is_numeric($maxNpcSalaryInfo['value'])
@@ -376,7 +1239,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] 
                 $ownerChanged = normalizeMatchText($catalogOwner) !== normalizeMatchText($ownerAtSync);
             }
 
-            $jobMarketUrl = 'https://vara.e-sim.org/jobMarket.html?regionId=' . rawurlencode($regionId);
+            $jobMarketUrl = buildJobMarketUrl($regionId, $regionCountryId);
             $jobOffers = [];
             $jobOfferCount = 0;
             $maxJobOfferInfo = null;
@@ -415,6 +1278,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] 
                 'regionId' => $regionId,
                 'regionName' => $regionName,
                 'regionUrl' => $regionUrl,
+                'countryId' => $regionCountryId,
                 'npcUrl' => $npcUrl,
                 'syncedAt' => gmdate('c'),
                 'syncedAtDisplay' => date('Y-m-d H:i:s'),
@@ -490,6 +1354,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] 
         $maxSalaryInfo = extractRegionMaxSalaryInfo($syncMeta);
         $maxJobOfferInfo = extractRegionMaxJobOfferInfo($syncMeta);
         $regionNpcOwnership = summarizeRegionNpcOwnership($syncMeta);
+        $regionCompanyCoverage = buildOwnedCompanyNpcCoverage($syncMeta);
+        $ownedCompaniesList = is_array($ownedCompaniesCache['companies'] ?? null) ? (array) $ownedCompaniesCache['companies'] : [];
+        $ownedCompaniesInRegion = [];
+        foreach ($ownedCompaniesList as $ownedCompany) {
+            if (!is_array($ownedCompany)) {
+                continue;
+            }
+            if (trim((string) ($ownedCompany['regionId'] ?? '')) === $regionId) {
+                $ownedCompaniesInRegion[] = $ownedCompany;
+            }
+        }
+        $regionCompanyVisualStates = buildRegionCompanyVisualStates($syncMeta, $ownedCompaniesInRegion);
         echo json_encode([
             'ok' => $syncStatus === 'ok',
             'syncStatus' => $syncStatus,
@@ -501,11 +1377,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] 
             'ownerAtSync' => $ownerAtSync,
             'ownerAtSyncFlagClass' => $ownerAtSyncFlagClass,
             'ownerCellHtml' => renderCountryWithFlagHtml($ownerAtSync, $ownerAtSyncFlagClass),
-            'salaryBaseCellHtml' => renderRegionBaseSalaryCellHtml($maxSalaryInfo),
+            'salaryBaseCellHtml' => renderRegionSalaryCellHtml($regionId, $syncMeta, is_array($syncMeta) ? trim((string) ($syncMeta['countryId'] ?? '')) : ''),
             'regionNpcOwnedCount' => (int) ($regionNpcOwnership['ownedCount'] ?? 0),
             'regionNpcOwnedWorkedCount' => (int) ($regionNpcOwnership['ownedWorkedCount'] ?? 0),
             'regionNpcTotalCount' => (int) ($regionNpcOwnership['totalCount'] ?? 0),
             'regionNpcControl' => (bool) ($regionNpcOwnership['hasControl'] ?? false),
+            'regionCompanyCoverage' => $regionCompanyCoverage,
+            'regionCompanyVisualStates' => $regionCompanyVisualStates,
             'regionMaxSalaryValue' => isset($maxSalaryInfo['value']) && is_numeric($maxSalaryInfo['value']) ? (float) $maxSalaryInfo['value'] : null,
             'regionMaxJobOfferValue' => isset($maxJobOfferInfo['value']) && is_numeric($maxJobOfferInfo['value']) ? (float) $maxJobOfferInfo['value'] : null,
             'companyNpcListHtml' => renderCompanyRegionNpcsHtml($syncMeta),
@@ -586,6 +1464,11 @@ foreach ($rows as $row) {
 }
 
 $ownedCompanies = is_array($ownedCompaniesCache['companies'] ?? null) ? (array) $ownedCompaniesCache['companies'] : [];
+$ownedCompanyWalletBalances = is_array($ownedCompaniesCache['walletBalances'] ?? null) ? (array) $ownedCompaniesCache['walletBalances'] : [];
+$ownedCompanyRequiredWalletBalances = calculateRequiredWalletBalancesForOwnedCompanies(
+    $ownedCompanies,
+    is_array($npcCache['regions'] ?? null) ? (array) $npcCache['regions'] : []
+);
 $ownedCompaniesByRegion = groupOwnedCompaniesByRegion($ownedCompanies);
 
 $selectedCountry = trim((string) ($_GET['country'] ?? ''));
@@ -618,6 +1501,15 @@ $syncMessage = trim((string) ($_GET['syncMessage'] ?? ''));
 $companySyncStatus = trim((string) ($_GET['companySyncStatus'] ?? ''));
 $companySyncCount = (int) ($_GET['companySyncCount'] ?? 0);
 $companySyncMessage = trim((string) ($_GET['companySyncMessage'] ?? ''));
+
+$companyOfferStatus = trim((string) ($_GET['companyOfferStatus'] ?? ''));
+$companyOfferMessage = trim((string) ($_GET['companyOfferMessage'] ?? ''));
+
+$bulkRegionSyncStatus = trim((string) ($_GET['bulkRegionSyncStatus'] ?? ''));
+$bulkRegionSyncCount = (int) ($_GET['bulkRegionSyncCount'] ?? 0);
+$bulkRegionSyncTarget = (int) ($_GET['bulkRegionSyncTarget'] ?? 0);
+$bulkRegionSyncNpcCount = (int) ($_GET['bulkRegionSyncNpcCount'] ?? 0);
+$bulkRegionSyncMessage = trim((string) ($_GET['bulkRegionSyncMessage'] ?? ''));
 
 $filteredRows = array_values(array_filter($rows, static function (array $row) use ($selectedCountry, $selectedResourceTypes, $selectedOwner, $selectedSalaryRange, $selectedOwnedCompany, $npcCache, $ownedCompaniesByRegion): bool {
     if ($selectedCountry !== '' && (string) ($row['countryName'] ?? '') !== $selectedCountry) {
@@ -871,15 +1763,53 @@ function renderCountryWithFlagHtml(string $countryName, string $preferredFlagCla
     return trim((string) ob_get_clean());
 }
 
-function renderRegionBaseSalaryCellHtml(?array $salaryInfo): string
+function renderRegionBaseSalaryCellHtml(?array $salaryInfo, ?array $syncMeta = null): string
 {
+    $workedClass = 'pending';
+    $workedIcon = '&#128339;';
+    $workedText = 'Sin sync';
+
+    if (is_array($syncMeta)) {
+        $syncedNpcs = is_array($syncMeta['npcs'] ?? null) ? (array) $syncMeta['npcs'] : [];
+        $hasWorkedNpc = false;
+        $hasPendingNpc = false;
+
+        foreach ($syncedNpcs as $npcRow) {
+            if (!is_array($npcRow)) {
+                continue;
+            }
+
+            $workedToday = $npcRow['workedToday'] ?? null;
+            if ($workedToday === true) {
+                $hasWorkedNpc = true;
+                break;
+            }
+
+            if ($workedToday === false) {
+                $hasPendingNpc = true;
+            }
+        }
+
+        if ($hasWorkedNpc) {
+            $workedClass = 'worked';
+            $workedIcon = '&#10003;';
+            $workedText = 'Ya trabajo';
+        } elseif ($hasPendingNpc || $syncedNpcs !== []) {
+            $workedClass = 'lost';
+            $workedIcon = '&#10007;';
+            $workedText = 'No ha trabajado';
+        }
+    }
+
+    $statusHtml = '<span class="npc-work-chip ' . esc($workedClass) . '"><span class="icon">' . $workedIcon . '</span>' . esc($workedText) . '</span>';
+
     if (!is_array($salaryInfo)) {
-        return '-';
+        return '- | ' . $statusHtml;
     }
 
     $value = isset($salaryInfo['value']) && is_numeric($salaryInfo['value']) ? (float) $salaryInfo['value'] : null;
     if ($value === null) {
-        return '-';
+        return '- | ' . $statusHtml;
     }
 
     $displayValue = number_format($value, 2, '.', '');
@@ -896,7 +1826,85 @@ function renderRegionBaseSalaryCellHtml(?array $salaryInfo): string
         <?php if ($currency !== ''): ?>
             <span><?= esc($currency) ?></span>
         <?php endif; ?>
+        <span>|</span>
+        <span class="npc-work-chip <?= esc($workedClass) ?>"><span class="icon"><?= $workedIcon ?></span><?= esc($workedText) ?></span>
     </span>
+    <?php
+
+    return trim((string) ob_get_clean());
+}
+
+function renderRegionTopOfferSummaryHtml(?array $syncMeta): string
+{
+    $maxJobOfferInfo = extractRegionMaxJobOfferInfo($syncMeta);
+    if (!is_array($maxJobOfferInfo) || !isset($maxJobOfferInfo['value']) || !is_numeric($maxJobOfferInfo['value'])) {
+        return '';
+    }
+
+    $value = (float) $maxJobOfferInfo['value'];
+    $displayValue = number_format($value, 2, '.', '');
+    $currency = trim((string) ($maxJobOfferInfo['currency'] ?? ''));
+    $flagClass = sanitizeCssFlagClass((string) ($maxJobOfferInfo['flagClass'] ?? ''));
+
+    ob_start();
+    ?>
+    <span class="resource-cell">
+        <?php if ($flagClass !== ''): ?>
+            <span class="xflagsSmall <?= esc($flagClass) ?>"></span>
+        <?php endif; ?>
+        <span><?= esc($displayValue) ?></span>
+        <?php if ($currency !== ''): ?>
+            <span><?= esc($currency) ?></span>
+        <?php endif; ?>
+    </span>
+    <?php
+
+    return trim((string) ob_get_clean());
+}
+
+function renderRegionSalaryCellHtml(string $regionId, ?array $syncMeta = null, string $countryId = ''): string
+{
+    $salaryInfo = extractRegionMaxSalaryInfo($syncMeta);
+    $salaryBaseHtml = renderRegionBaseSalaryCellHtml($salaryInfo, $syncMeta);
+    $topOfferHtml = renderRegionTopOfferSummaryHtml($syncMeta);
+    $jobOfferCount = is_array($syncMeta) ? (int) ($syncMeta['jobOfferCount'] ?? 0) : 0;
+    if ($countryId === '' && is_array($syncMeta)) {
+        $countryId = trim((string) ($syncMeta['countryId'] ?? ''));
+    }
+    if ($countryId === '') {
+        $countryId = findRegionCountryIdFromCatalogData($GLOBALS['data'] ?? [], $regionId);
+    }
+    $jobMarketUrl = buildJobMarketUrl($regionId, $countryId);
+
+    ob_start();
+    ?>
+    <div style="display:flex; flex-direction:column; gap:4px; min-width:220px;">
+        <div><?= $salaryBaseHtml ?></div>
+        <div><button
+                type="button"
+                class="sync-btn region-job-offers-btn"
+                title="Consultar ofertas"
+                aria-label="Consultar ofertas"
+                data-region-id="<?= esc($regionId) ?>"
+                data-country-id="<?= esc($countryId) ?>"
+                data-loading-label="⌛"
+            >⟳ Actualizar Ofertas</button></div>
+        
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <?= $topOfferHtml ?>
+            <a
+                href="<?= esc($jobMarketUrl) ?>"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="sync-btn icon-only"
+                title="Abrir jobMarket"
+                aria-label="Abrir jobMarket"
+                style="text-decoration:none;"
+            >&#128269;</a>
+        </div>
+        <div class="sync-inline-status" data-job-offers-status></div>
+        
+    </div>
     <?php
 
     return trim((string) ob_get_clean());
@@ -932,11 +1940,11 @@ function renderSyncMetaHtml(?array $syncMeta): string
         Ultima sync: <?= $syncedAtDisplay ?>
         <?php if ($maxNpcSalaryValue !== null): ?>
             <br>
-            Sueldo base (max NPC): <?= renderRegionBaseSalaryCellHtml($maxNpcSalaryInfo) ?>
+            Sueldo base (max NPC): <?= renderRegionBaseSalaryCellHtml($maxNpcSalaryInfo, $syncMeta) ?>
         <?php endif; ?>
         <?php if ($maxJobOfferValue !== null): ?>
             <br>
-            Oferta laboral top (<?= $jobOfferCount ?>): <?= renderRegionBaseSalaryCellHtml($maxJobOfferInfo) ?>
+            Oferta laboral top (<?= $jobOfferCount ?>): <?= renderRegionBaseSalaryCellHtml($maxJobOfferInfo, $syncMeta) ?>
             <?php if ($maxNpcSalaryValue !== null && $maxJobOfferValue > $maxNpcSalaryValue): ?>
                 <br>
                 <span class="sync-owner-status warning">Competencia activa: oferta top supera sueldo NPC max.</span>
@@ -1170,6 +2178,366 @@ function fetchHtmlFromUrl(string $url, string $cookie = '', string $cookieFile =
     }
 
     return $result;
+}
+
+function submitEsimFormRequest(string $url, string $method, array $fields, string $cookie = '', string $cookieFile = ''): array
+{
+    $method = strtoupper(trim($method));
+    if ($method !== 'GET' && $method !== 'POST') {
+        $method = 'POST';
+    }
+
+    $query = http_build_query($fields, '', '&', PHP_QUERY_RFC3986);
+    $targetUrl = $url;
+    if ($method === 'GET' && $query !== '') {
+        $targetUrl .= (str_contains($targetUrl, '?') ? '&' : '?') . $query;
+    }
+
+    $result = [
+        'ok' => false,
+        'httpStatus' => 0,
+        'body' => '',
+        'error' => '',
+    ];
+
+    if (function_exists('curl_init')) {
+        $ch = curl_init($targetUrl);
+        if ($ch !== false) {
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_TIMEOUT => 20,
+                CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) NPCSync/1.0',
+            ]);
+
+            if ($method === 'POST') {
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $query);
+            }
+
+            if ($cookie !== '') {
+                curl_setopt($ch, CURLOPT_COOKIE, $cookie);
+            }
+            if ($cookieFile !== '' && is_file($cookieFile)) {
+                curl_setopt($ch, CURLOPT_COOKIEFILE, $cookieFile);
+                curl_setopt($ch, CURLOPT_COOKIEJAR, $cookieFile);
+            }
+
+            $body = curl_exec($ch);
+            $error = curl_error($ch);
+            $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            $result['httpStatus'] = $status;
+            $result['body'] = is_string($body) ? $body : '';
+            $result['error'] = $error;
+            $result['ok'] = $status >= 200 && $status < 400 && $result['body'] !== '';
+            return $result;
+        }
+    }
+
+    $fallbackCookie = $cookie;
+    if ($fallbackCookie === '' && $cookieFile !== '') {
+        $fallbackCookie = buildCookieHeaderFromCookieFile($cookieFile);
+    }
+
+    $headers = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) NPCSync/1.0\r\n";
+    if ($fallbackCookie !== '') {
+        $headers .= 'Cookie: ' . $fallbackCookie . "\r\n";
+    }
+    if ($method === 'POST') {
+        $headers .= "Content-Type: application/x-www-form-urlencoded\r\n";
+    }
+
+    $context = stream_context_create([
+        'http' => [
+            'method' => $method,
+            'timeout' => 20,
+            'ignore_errors' => true,
+            'header' => $headers,
+            'content' => $method === 'POST' ? $query : '',
+        ],
+    ]);
+
+    $body = @file_get_contents($targetUrl, false, $context);
+    $result['body'] = is_string($body) ? $body : '';
+
+    if (isset($http_response_header) && is_array($http_response_header)) {
+        foreach ($http_response_header as $headerLine) {
+            if (preg_match('/^HTTP\/\d(?:\.\d)?\s+(\d{3})/i', (string) $headerLine, $m)) {
+                $result['httpStatus'] = (int) $m[1];
+                break;
+            }
+        }
+    }
+
+    $result['ok'] = $result['httpStatus'] >= 200 && $result['httpStatus'] < 400 && $result['body'] !== '';
+    if (!$result['ok'] && $result['error'] === '') {
+        $result['error'] = 'No se pudo obtener respuesta valida.';
+    }
+
+    return $result;
+}
+
+function parseCompanyJobOfferFormsHtml(string $html): array
+{
+    $formsOut = [];
+    if (trim($html) === '') {
+        return $formsOut;
+    }
+
+    libxml_use_internal_errors(true);
+    $dom = new DOMDocument();
+    $loaded = $dom->loadHTML($html);
+    if (!$loaded) {
+        return $formsOut;
+    }
+
+    $xpath = new DOMXPath($dom);
+    $containerNode = $xpath->query('//*[@id="createJobDisplay"][1]');
+    $container = $containerNode instanceof DOMNodeList && $containerNode->length > 0 ? $containerNode->item(0) : null;
+    if (!$container instanceof DOMNode) {
+        return $formsOut;
+    }
+
+    $forms = $xpath->query('.//form', $container);
+    if (!$forms instanceof DOMNodeList || $forms->length === 0) {
+        return $formsOut;
+    }
+
+    foreach ($forms as $formNode) {
+        if (!$formNode instanceof DOMElement) {
+            continue;
+        }
+
+        $actionUrl = toAbsoluteEsimUrl((string) $formNode->getAttribute('action'));
+        if ($actionUrl === '') {
+            continue;
+        }
+        $method = strtoupper(trim((string) $formNode->getAttribute('method')));
+        if ($method !== 'POST' && $method !== 'GET') {
+            $method = 'POST';
+        }
+
+        $buttonLabel = '';
+        $buttonNodes = $xpath->query('.//button[1] | .//input[@type="submit"][1] | .//input[@type="button"][1]', $formNode);
+        if ($buttonNodes instanceof DOMNodeList && $buttonNodes->length > 0) {
+            $btn = $buttonNodes->item(0);
+            if ($btn instanceof DOMElement) {
+                $buttonLabel = trim((string) $btn->textContent);
+                if ($buttonLabel === '') {
+                    $buttonLabel = trim((string) $btn->getAttribute('value'));
+                }
+            }
+        }
+
+        $fieldsRaw = $xpath->query('.//input | .//select | .//textarea', $formNode);
+        if (!$fieldsRaw instanceof DOMNodeList) {
+            continue;
+        }
+
+        $staticFields = [];
+        $editableFields = [];
+        $hiddenActionValue = '';
+
+        foreach ($fieldsRaw as $fieldNode) {
+            if (!$fieldNode instanceof DOMElement) {
+                continue;
+            }
+
+            $name = trim((string) $fieldNode->getAttribute('name'));
+            if ($name === '') {
+                continue;
+            }
+
+            $tagName = strtolower($fieldNode->tagName);
+            $type = $tagName === 'input' ? strtolower(trim((string) $fieldNode->getAttribute('type'))) : $tagName;
+            if ($type === '') {
+                $type = 'text';
+            }
+
+            if ($tagName === 'input' && in_array($type, ['button', 'submit', 'image', 'file'], true)) {
+                continue;
+            }
+
+            if (($type === 'checkbox' || $type === 'radio') && !$fieldNode->hasAttribute('checked')) {
+                continue;
+            }
+
+            $value = '';
+            if ($tagName === 'select') {
+                $selectedOption = $xpath->query('.//option[@selected][1]', $fieldNode);
+                if ($selectedOption instanceof DOMNodeList && $selectedOption->length > 0) {
+                    $opt = $selectedOption->item(0);
+                    if ($opt instanceof DOMElement) {
+                        $value = trim((string) $opt->getAttribute('value'));
+                        if ($value === '') {
+                            $value = trim((string) $opt->textContent);
+                        }
+                    }
+                } else {
+                    $firstOption = $xpath->query('.//option[1]', $fieldNode);
+                    if ($firstOption instanceof DOMNodeList && $firstOption->length > 0) {
+                        $opt = $firstOption->item(0);
+                        if ($opt instanceof DOMElement) {
+                            $value = trim((string) $opt->getAttribute('value'));
+                            if ($value === '') {
+                                $value = trim((string) $opt->textContent);
+                            }
+                        }
+                    }
+                }
+            } elseif ($tagName === 'textarea') {
+                $value = trim((string) $fieldNode->textContent);
+            } else {
+                $value = trim((string) $fieldNode->getAttribute('value'));
+            }
+
+            if ($name === 'action') {
+                $hiddenActionValue = $value;
+            }
+
+            if ($type === 'hidden') {
+                $staticFields[$name] = $value;
+                continue;
+            }
+
+            $inputType = 'text';
+            if (in_array($type, ['number', 'text'], true)) {
+                $inputType = $type;
+            }
+
+            $editableFields[] = [
+                'name' => $name,
+                'label' => ucwords(str_replace(['_', '-'], ' ', $name)),
+                'type' => $inputType,
+                'value' => $value,
+                'min' => trim((string) $fieldNode->getAttribute('min')),
+                'max' => trim((string) $fieldNode->getAttribute('max')),
+                'step' => trim((string) $fieldNode->getAttribute('step')),
+                'required' => $fieldNode->hasAttribute('required'),
+            ];
+        }
+
+        $actionType = strtoupper(trim($hiddenActionValue));
+        $isCreate = $actionType === 'POST_JOB_OFFER'
+            || str_contains(strtolower($buttonLabel), 'create job offer');
+        $isDelete = $actionType === 'DELETE_JOB_OFFER'
+            || str_contains(strtolower($buttonLabel), 'borrar')
+            || str_contains(strtolower($buttonLabel), 'delete');
+        $isEdit = $actionType === 'EDIT_JOB_OFFER'
+            || str_contains(strtolower($buttonLabel), 'editar')
+            || str_contains(strtolower($buttonLabel), 'edit');
+
+        if ($buttonLabel === '') {
+            if ($isCreate) {
+                $buttonLabel = 'Crear oferta de trabajo';
+            } elseif ($isDelete) {
+                $buttonLabel = 'Borrar';
+            } elseif ($isEdit) {
+                $buttonLabel = 'Editar';
+            } else {
+                $buttonLabel = 'Guardar cambios';
+            }
+        }
+
+        if ($editableFields === [] && !$isCreate && !$isDelete) {
+            continue;
+        }
+
+        $formsOut[] = [
+            'actionUrl' => $actionUrl,
+            'method' => $method,
+            'actionType' => $actionType,
+            'buttonLabel' => $buttonLabel,
+            'isCreate' => $isCreate,
+            'isDelete' => $isDelete,
+            'staticFields' => $staticFields,
+            'editableFields' => $editableFields,
+        ];
+    }
+
+    return $formsOut;
+}
+
+function renderCompanyJobOfferManagerHtml(array $forms, string $companyId, string $companyUrl, string $regionId): string
+{
+    if ($forms === []) {
+        return '<span style="color:var(--muted);">No se detectaron formularios de ofertas para esta empresa.</span>';
+    }
+
+    ob_start();
+    ?>
+    <div style="display:flex; flex-direction:column; gap:8px;">
+        <?php foreach ($forms as $index => $formMeta): ?>
+            <?php if (!is_array($formMeta)) { continue; } ?>
+            <?php
+                $actionUrl = trim((string) ($formMeta['actionUrl'] ?? ''));
+                $method = strtoupper(trim((string) ($formMeta['method'] ?? 'POST')));
+                $actionType = strtoupper(trim((string) ($formMeta['actionType'] ?? '')));
+                $buttonLabel = trim((string) ($formMeta['buttonLabel'] ?? 'Enviar'));
+                $isCreate = (bool) ($formMeta['isCreate'] ?? false);
+                $isDelete = (bool) ($formMeta['isDelete'] ?? false);
+                $staticFields = is_array($formMeta['staticFields'] ?? null) ? $formMeta['staticFields'] : [];
+                $editableFields = is_array($formMeta['editableFields'] ?? null) ? $formMeta['editableFields'] : [];
+                $templatePayload = base64_encode((string) json_encode([
+                    'actionUrl' => $actionUrl,
+                    'method' => $method,
+                    'actionType' => $actionType,
+                    'staticFields' => $staticFields,
+                    'editableFields' => $editableFields,
+                    'buttonLabel' => $buttonLabel,
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            ?>
+            <form method="post" class="company-offer-manage-form" style="border:1px solid var(--line); border-radius:8px; padding:8px; background:#fff;">
+                <input type="hidden" name="action" value="company-job-offer-submit">
+                <input type="hidden" name="companyId" value="<?= esc($companyId) ?>">
+                <input type="hidden" name="companyUrl" value="<?= esc($companyUrl) ?>">
+                <input type="hidden" name="regionId" value="<?= esc($regionId) ?>">
+                <input type="hidden" name="formTemplate" value="<?= esc($templatePayload) ?>">
+                <div style="font-size:12px; font-weight:700; margin-bottom:6px; color:#274366;"><?=
+                    esc($isCreate
+                        ? 'Publicar oferta'
+                        : ($isDelete ? 'Eliminar oferta' : ('Gestionar oferta #' . ($index + 1))))
+                ?></div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:6px; align-items:end;">
+                    <?php foreach ($editableFields as $fieldIndex => $field): ?>
+                        <?php if (!is_array($field)) { continue; } ?>
+                        <?php $fLabel = trim((string) ($field['label'] ?? 'Campo')); ?>
+                        <?php $fType = trim((string) ($field['type'] ?? 'text')); ?>
+                        <?php $fValue = (string) ($field['value'] ?? ''); ?>
+                        <?php $fMin = trim((string) ($field['min'] ?? '')); ?>
+                        <?php $fMax = trim((string) ($field['max'] ?? '')); ?>
+                        <?php $fStep = trim((string) ($field['step'] ?? '')); ?>
+                        <label style="margin:0; text-transform:none; letter-spacing:0;">
+                            <span style="display:block; font-size:11px; color:var(--muted); margin-bottom:2px;"><?= esc($fLabel) ?></span>
+                            <input
+                                type="<?= esc($fType !== '' ? $fType : 'text') ?>"
+                                name="editableValues[<?= (int) $fieldIndex ?>]"
+                                value="<?= esc($fValue) ?>"
+                                <?= $fMin !== '' ? ('min="' . esc($fMin) . '"') : '' ?>
+                                <?= $fMax !== '' ? ('max="' . esc($fMax) . '"') : '' ?>
+                                <?= $fStep !== '' ? ('step="' . esc($fStep) . '"') : '' ?>
+                                style="width:100%; min-height:30px; border:1px solid var(--line); border-radius:6px; padding:4px 6px;"
+                            >
+                        </label>
+                    <?php endforeach; ?>
+                    <button
+                        type="submit"
+                        class="sync-btn"
+                        data-default-label="<?= esc($buttonLabel) ?>"
+                        data-loading-label="⌛"
+                        <?= $isDelete ? 'data-confirm="1"' : '' ?>
+                        style="justify-self:start;<?= $isDelete ? ' background:#b62d2d; border-color:#8f2020;' : '' ?>"
+                    ><?= esc($buttonLabel) ?></button>
+                </div>
+            </form>
+        <?php endforeach; ?>
+    </div>
+    <?php
+
+    return trim((string) ob_get_clean());
 }
 
 function parseNpcStatisticsHtml(string $html): array
@@ -1556,7 +2924,7 @@ function parseCompanyWorkedStatusFromHtml(string $html): array
     ];
 }
 
-function enrichNpcRowsWithWorkedStatus(array $npcRows, string $cookie = '', string $cookieFile = '', string $credentialsUserId = '', string $credentialsMuId = ''): array
+function enrichNpcRowsWithWorkedStatus(array $npcRows, string $cookie = '', string $cookieFile = '', string $credentialsUserId = '', string $credentialsMuId = '', array $ownedCompanyLookup = []): array
 {
     if ($npcRows === []) {
         return $npcRows;
@@ -1616,6 +2984,12 @@ function enrichNpcRowsWithWorkedStatus(array $npcRows, string $cookie = '', stri
             $companyOwnedByMu = $credentialsMuId !== '' && $companyOwnerMuId !== '' && $credentialsMuId === $companyOwnerMuId;
         }
 
+        $companyName = trim((string) ($npcRow['company'] ?? ''));
+        $companyLookupKeyByUrl = $companyUrl !== '' ? ('url:' . normalizeMatchText($companyUrl)) : '';
+        $companyLookupKeyByName = $companyName !== '' ? ('name:' . normalizeMatchText($companyName)) : '';
+        $companyOwnedByCache = ($companyLookupKeyByUrl !== '' && isset($ownedCompanyLookup[$companyLookupKeyByUrl]))
+            || ($companyLookupKeyByName !== '' && isset($ownedCompanyLookup[$companyLookupKeyByName]));
+
         $npcRows[$index]['companyUrl'] = $companyUrl;
         $npcRows[$index]['workedToday'] = $workedToday;
         $npcRows[$index]['workedDayLabel'] = $workedDayLabel;
@@ -1623,15 +2997,47 @@ function enrichNpcRowsWithWorkedStatus(array $npcRows, string $cookie = '', stri
         $npcRows[$index]['companyOwnerMuId'] = $companyOwnerMuId;
         $npcRows[$index]['companyOwnedByUser'] = $companyOwnedByUser;
         $npcRows[$index]['companyOwnedByMu'] = $companyOwnedByMu;
-        $npcRows[$index]['companyOwnedByUserOrMu'] = $companyOwnedByUser || $companyOwnedByMu;
+        $npcRows[$index]['companyOwnedByUserOrMu'] = $companyOwnedByUser || $companyOwnedByMu || $companyOwnedByCache;
     }
 
     return $npcRows;
 }
 
+function buildOwnedCompanyLookupForRegion(array $ownedCompaniesList, string $regionId): array
+{
+    $lookup = [];
+    $regionId = trim($regionId);
+    if ($regionId === '') {
+        return $lookup;
+    }
+
+    foreach ($ownedCompaniesList as $ownedCompany) {
+        if (!is_array($ownedCompany)) {
+            continue;
+        }
+
+        $ownedRegionId = trim((string) ($ownedCompany['regionId'] ?? ''));
+        if ($ownedRegionId === '' || $ownedRegionId !== $regionId) {
+            continue;
+        }
+
+        $ownedCompanyUrl = toAbsoluteEsimUrl((string) ($ownedCompany['companyUrl'] ?? ''));
+        if ($ownedCompanyUrl !== '') {
+            $lookup['url:' . normalizeMatchText($ownedCompanyUrl)] = true;
+        }
+
+        $ownedCompanyName = trim((string) ($ownedCompany['companyName'] ?? ''));
+        if ($ownedCompanyName !== '') {
+            $lookup['name:' . normalizeMatchText($ownedCompanyName)] = true;
+        }
+    }
+
+    return $lookup;
+}
+
 function extractFirstFlagClassFromNode(DOMXPath $xpath, DOMNode $contextNode): string
 {
-    $nodes = $xpath->query('.//*[contains(@class, "xflagsSmall-")]', $contextNode);
+    $nodes = $xpath->query('.//*[contains(@class, "xflagsSmall-") or contains(@class, "xflagsBig-") or contains(@class, "xflagsMedium-")]', $contextNode);
     if (!$nodes instanceof DOMNodeList || $nodes->length === 0) {
         return '';
     }
@@ -1644,7 +3050,7 @@ function extractFirstFlagClassFromNode(DOMXPath $xpath, DOMNode $contextNode): s
         if ($classAttr === '') {
             continue;
         }
-        if (preg_match('/\bxflagsSmall-([A-Za-z0-9-]+)\b/', $classAttr, $matches)) {
+        if (preg_match('/\bxflags(?:Small|Big|Medium)-([A-Za-z0-9-]+)\b/', $classAttr, $matches)) {
             return 'xflagsSmall-' . (string) $matches[1];
         }
     }
@@ -1885,6 +3291,52 @@ function extractRegionMaxSalaryValue(?array $syncMeta): ?float
     return (float) $info['value'];
 }
 
+function findRegionCountryIdFromCatalogData(array $catalogData, string $regionId): string
+{
+    $regionId = trim($regionId);
+    if ($regionId === '') {
+        return '';
+    }
+
+    $countries = is_array($catalogData['countries'] ?? null) ? (array) $catalogData['countries'] : [];
+    foreach ($countries as $country) {
+        if (!is_array($country)) {
+            continue;
+        }
+
+        $countryId = trim((string) ($country['id'] ?? ''));
+        if ($countryId === '') {
+            continue;
+        }
+
+        $regions = is_array($country['regions'] ?? null) ? (array) $country['regions'] : [];
+        foreach ($regions as $region) {
+            if (!is_array($region)) {
+                continue;
+            }
+
+            $candidateRegionId = trim((string) ($region['id'] ?? ''));
+            if ($candidateRegionId !== '' && $candidateRegionId === $regionId) {
+                return $countryId;
+            }
+        }
+    }
+
+    return '';
+}
+
+function buildJobMarketUrl(string $regionId, string $countryId = ''): string
+{
+    $regionId = trim($regionId);
+
+    $query = [
+        'regionId' => $regionId,
+        'minimalSkill' => '0',
+    ];
+
+    return 'https://vara.e-sim.org/jobMarket.html?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+}
+
 function parseJobMarketOffersHtml(string $html): array
 {
     $offers = [];
@@ -1900,6 +3352,74 @@ function parseJobMarketOffersHtml(string $html): array
     }
 
     $xpath = new DOMXPath($dom);
+    $offerCards = $xpath->query('//div[contains(@class, "job-offer")]');
+    if ($offerCards instanceof DOMNodeList && $offerCards->length > 0) {
+        foreach ($offerCards as $card) {
+            if (!$card instanceof DOMNode) {
+                continue;
+            }
+
+            $rowText = trim((string) $card->textContent);
+            if ($rowText === '') {
+                continue;
+            }
+
+            $companyUrl = '';
+            $companyName = '';
+            $companyLinkNodes = $xpath->query('.//div[contains(@class, "job-offer-company")]//a[contains(@href, "company.html")][1]', $card);
+            if ($companyLinkNodes instanceof DOMNodeList && $companyLinkNodes->length > 0) {
+                $companyLink = $companyLinkNodes->item(0);
+                if ($companyLink instanceof DOMElement) {
+                    $companyUrl = toAbsoluteEsimUrl((string) $companyLink->getAttribute('href'));
+                    $companyName = trim((string) $companyLink->textContent);
+                }
+            }
+
+            $salary = '';
+            $salaryCurrency = '';
+            $salaryFlagClass = '';
+            $salaryValue = null;
+
+            $salaryNodes = $xpath->query('.//div[contains(@class, "job-offer-salary")]//*[contains(@class, "currency")][1]', $card);
+            $salaryNode = null;
+            if ($salaryNodes instanceof DOMNodeList && $salaryNodes->length > 0) {
+                $salaryNode = $salaryNodes->item(0);
+            }
+            if (!$salaryNode instanceof DOMNode) {
+                $fallbackSalaryNodes = $xpath->query('.//div[contains(@class, "job-offer-salary")][1]', $card);
+                if ($fallbackSalaryNodes instanceof DOMNodeList && $fallbackSalaryNodes->length > 0) {
+                    $salaryNode = $fallbackSalaryNodes->item(0);
+                }
+            }
+
+            if ($salaryNode instanceof DOMNode) {
+                $salary = trim((string) $salaryNode->textContent);
+                $salaryValue = normalizeSalaryNumberString($salary);
+                $salaryFlagClass = extractFirstFlagClassFromNode($xpath, $salaryNode);
+                if (preg_match('/\b([A-Z]{2,4})\b/u', $salary, $currencyMatch) === 1) {
+                    $salaryCurrency = (string) ($currencyMatch[1] ?? '');
+                }
+            }
+
+            if ($salaryValue === null && $companyName === '') {
+                continue;
+            }
+
+            $offers[] = [
+                'companyName' => $companyName,
+                'companyUrl' => $companyUrl,
+                'salary' => $salary,
+                'salaryCurrency' => $salaryCurrency,
+                'salaryFlagClass' => $salaryFlagClass,
+                'salaryValue' => $salaryValue,
+                'rowText' => $rowText,
+            ];
+        }
+
+        return $offers;
+    }
+
+    // Legacy fallback: old job market table layout.
     $rows = $xpath->query('//table[.//tr[td]]//tr[td]');
     if (!$rows instanceof DOMNodeList || $rows->length === 0) {
         return $offers;
@@ -2133,6 +3653,484 @@ function parseOwnedCompaniesHtml(string $html): array
     return $items;
 }
 
+function parseSidebarMoneyBalancesHtml(string $html): array
+{
+    $balances = [];
+    if (trim($html) === '') {
+        return $balances;
+    }
+
+    libxml_use_internal_errors(true);
+    $dom = new DOMDocument();
+    $loaded = $dom->loadHTML($html);
+    if (!$loaded) {
+        return $balances;
+    }
+
+    $xpath = new DOMXPath($dom);
+    $rows = $xpath->query('//*[@id="sideBarMoneyList"]//*[contains(concat(" ", normalize-space(@class), " "), " sidebar-money ")]');
+    if (!$rows instanceof DOMNodeList || $rows->length === 0) {
+        return $balances;
+    }
+
+    foreach ($rows as $row) {
+        if (!$row instanceof DOMElement) {
+            continue;
+        }
+
+        $flagClass = extractFirstFlagClassFromNode($xpath, $row);
+
+        $amountText = '';
+        $amountTitle = '';
+        $amountNodes = $xpath->query('.//b[1]', $row);
+        if ($amountNodes instanceof DOMNodeList && $amountNodes->length > 0) {
+            $amountNode = $amountNodes->item(0);
+            if ($amountNode instanceof DOMElement) {
+                $amountText = trim((string) $amountNode->textContent);
+                $amountTitle = trim((string) $amountNode->getAttribute('title'));
+            }
+        }
+
+        $currencyText = trim((string) $row->textContent);
+        if ($amountText !== '') {
+            $currencyText = str_replace($amountText, ' ', $currencyText);
+        }
+        if ($amountTitle !== '') {
+            $currencyText = str_replace($amountTitle, ' ', $currencyText);
+        }
+        $currencyText = preg_replace('/\s+/u', ' ', $currencyText);
+        $currencyText = is_string($currencyText) ? trim($currencyText) : '';
+
+        $currencyCode = '';
+        if ($currencyText !== '' && preg_match('/\b([A-Z]{2,5}|Gold)\b/u', $currencyText, $currencyMatch) === 1) {
+            $currencyCode = trim((string) ($currencyMatch[1] ?? ''));
+        }
+        if ($currencyCode === '' && $flagClass !== '') {
+            if (str_contains($flagClass, 'xflagsSmall-Gold')) {
+                $currencyCode = 'Gold';
+            } else {
+                $currencyCode = trim((string) preg_replace('/^xflagsSmall-/', '', $flagClass));
+            }
+        }
+
+        $amountRaw = $amountTitle !== '' ? $amountTitle : $amountText;
+        $amountValue = normalizeSalaryNumberString($amountRaw);
+        if ($amountValue === null && $currencyCode === '') {
+            continue;
+        }
+
+        $amountDisplay = $amountValue !== null
+            ? number_format($amountValue, 2, '.', '')
+            : trim((string) $amountRaw);
+
+        $balances[] = [
+            'flagClass' => sanitizeCssFlagClass($flagClass),
+            'amountValue' => $amountValue,
+            'amountDisplay' => $amountDisplay,
+            'currencyCode' => $currencyCode,
+        ];
+    }
+
+    return $balances;
+}
+
+function parseStorageMoneyBalancesHtml(string $html): array
+{
+    $balances = [];
+    if (trim($html) === '') {
+        return $balances;
+    }
+
+    libxml_use_internal_errors(true);
+    $dom = new DOMDocument();
+    $loaded = $dom->loadHTML($html);
+    if (!$loaded) {
+        return $balances;
+    }
+
+    $xpath = new DOMXPath($dom);
+    $rows = $xpath->query('//div[contains(concat(" ", normalize-space(@class), " "), " buyCurrency ") and contains(concat(" ", normalize-space(@class), " "), " option ") and @data-currency-name and @data-currency-amount]');
+    if (!$rows instanceof DOMNodeList || $rows->length === 0) {
+        return $balances;
+    }
+
+    $seen = [];
+    foreach ($rows as $row) {
+        if (!$row instanceof DOMElement) {
+            continue;
+        }
+
+        $currencyId = trim((string) $row->getAttribute('data-currency-id'));
+        $currencyCode = trim((string) $row->getAttribute('data-currency-name'));
+        $amountRaw = trim((string) $row->getAttribute('data-currency-amount'));
+        $flagClass = extractFirstFlagClassFromNode($xpath, $row);
+        if ($flagClass === '' && strtoupper($currencyCode) === 'GOLD') {
+            $flagClass = 'xflagsSmall-Gold';
+        }
+
+        $dedupeKey = $currencyId !== '' ? ('id:' . $currencyId) : ('code:' . strtolower($currencyCode));
+        if ($dedupeKey !== '' && isset($seen[$dedupeKey])) {
+            continue;
+        }
+
+        $amountValue = normalizeSalaryNumberString($amountRaw);
+        if ($amountValue === null) {
+            continue;
+        }
+
+        if ($dedupeKey !== '') {
+            $seen[$dedupeKey] = true;
+        }
+
+        $balances[] = [
+            'flagClass' => sanitizeCssFlagClass($flagClass),
+            'amountValue' => $amountValue,
+            'amountDisplay' => number_format($amountValue, 2, '.', ''),
+            'currencyCode' => $currencyCode,
+        ];
+    }
+
+    return $balances;
+}
+
+function buildCompanyMatchKeys(array $company): array
+{
+    $keys = [];
+
+    $companyUrl = toAbsoluteEsimUrl((string) ($company['companyUrl'] ?? ''));
+    if ($companyUrl !== '') {
+        $keys['url:' . normalizeMatchText($companyUrl)] = true;
+    }
+
+    $companyName = trim((string) ($company['companyName'] ?? ''));
+    if ($companyName !== '') {
+        $keys['name:' . normalizeMatchText($companyName)] = true;
+    }
+
+    return $keys;
+}
+
+function buildOfferOrNpcMatchKeys(string $companyUrl, string $companyName): array
+{
+    $keys = [];
+
+    $normalizedUrl = toAbsoluteEsimUrl($companyUrl);
+    if ($normalizedUrl !== '') {
+        $keys['url:' . normalizeMatchText($normalizedUrl)] = true;
+    }
+
+    $companyName = trim($companyName);
+    if ($companyName !== '') {
+        $keys['name:' . normalizeMatchText($companyName)] = true;
+    }
+
+    return $keys;
+}
+
+function normalizeWalletCurrencyCode(string $currencyCode, string $flagClass): string
+{
+    $currencyCode = trim($currencyCode);
+    if ($currencyCode !== '') {
+        return strtoupper($currencyCode);
+    }
+
+    $flagClass = sanitizeCssFlagClass($flagClass);
+    if ($flagClass !== '' && preg_match('/^xflagsSmall-([A-Za-z0-9-]+)$/', $flagClass, $m) === 1) {
+        $suffix = trim((string) ($m[1] ?? ''));
+        if ($suffix !== '') {
+            return strtoupper($suffix);
+        }
+    }
+
+    return '';
+}
+
+function addCurrencyAmountToTotals(array &$totals, float $amountValue, string $currencyCode, string $flagClass): void
+{
+    if (!is_finite($amountValue) || $amountValue <= 0) {
+        return;
+    }
+
+    $flagClass = sanitizeCssFlagClass($flagClass);
+    $currencyCode = normalizeWalletCurrencyCode($currencyCode, $flagClass);
+    if ($currencyCode === '') {
+        return;
+    }
+
+    $key = strtolower($currencyCode);
+    if (!isset($totals[$key])) {
+        $totals[$key] = [
+            'flagClass' => $flagClass,
+            'amountValue' => 0.0,
+            'amountDisplay' => '0.00',
+            'currencyCode' => $currencyCode,
+        ];
+    }
+
+    $totals[$key]['amountValue'] = (float) $totals[$key]['amountValue'] + $amountValue;
+    if ((string) ($totals[$key]['flagClass'] ?? '') === '' && $flagClass !== '') {
+        $totals[$key]['flagClass'] = $flagClass;
+    }
+    if ((string) ($totals[$key]['currencyCode'] ?? '') === '') {
+        $totals[$key]['currencyCode'] = $currencyCode;
+    }
+    $totals[$key]['amountDisplay'] = number_format((float) $totals[$key]['amountValue'], 2, '.', '');
+}
+
+function calculateRequiredWalletBalancesForOwnedCompanies(array $ownedCompanies, array $regionsCache): array
+{
+    $totals = [];
+
+    foreach ($ownedCompanies as $company) {
+        if (!is_array($company)) {
+            continue;
+        }
+
+        $regionId = trim((string) ($company['regionId'] ?? ''));
+        if ($regionId === '') {
+            continue;
+        }
+
+        $syncMeta = is_array($regionsCache[$regionId] ?? null) ? (array) $regionsCache[$regionId] : null;
+        if (!is_array($syncMeta)) {
+            continue;
+        }
+
+        $companyKeys = buildCompanyMatchKeys($company);
+        if ($companyKeys === []) {
+            continue;
+        }
+
+        $npcRows = is_array($syncMeta['npcs'] ?? null) ? (array) $syncMeta['npcs'] : [];
+        $ownedNpcSalaries = [];
+        foreach ($npcRows as $npcRow) {
+            if (!is_array($npcRow)) {
+                continue;
+            }
+
+            $npcKeys = buildOfferOrNpcMatchKeys(
+                (string) ($npcRow['companyUrl'] ?? ''),
+                (string) ($npcRow['company'] ?? '')
+            );
+            $isSameCompany = false;
+            foreach (array_keys($npcKeys) as $candidateKey) {
+                if (isset($companyKeys[$candidateKey])) {
+                    $isSameCompany = true;
+                    break;
+                }
+            }
+            if (!$isSameCompany) {
+                continue;
+            }
+
+            if (!(bool) ($npcRow['companyOwnedByUserOrMu'] ?? false)) {
+                continue;
+            }
+
+            $salaryValue = normalizeSalaryNumberString((string) ($npcRow['salary'] ?? ''));
+            if ($salaryValue === null || $salaryValue <= 0) {
+                continue;
+            }
+
+            $ownedNpcSalaries[] = [
+                'value' => $salaryValue,
+                'currency' => trim((string) ($npcRow['salaryCurrency'] ?? '')),
+                'flagClass' => sanitizeCssFlagClass((string) ($npcRow['salaryFlagClass'] ?? '')),
+            ];
+        }
+
+        if ($ownedNpcSalaries !== []) {
+            $ownedNpcSalaries = array_slice($ownedNpcSalaries, 0, 3);
+            foreach ($ownedNpcSalaries as $salaryRow) {
+                addCurrencyAmountToTotals(
+                    $totals,
+                    (float) ($salaryRow['value'] ?? 0),
+                    (string) ($salaryRow['currency'] ?? ''),
+                    (string) ($salaryRow['flagClass'] ?? '')
+                );
+            }
+            continue;
+        }
+
+        $jobOffers = is_array($syncMeta['jobOffers'] ?? null) ? (array) $syncMeta['jobOffers'] : [];
+        $topThreeOffers = array_slice($jobOffers, 0, 3);
+        foreach ($topThreeOffers as $offer) {
+            if (!is_array($offer)) {
+                continue;
+            }
+
+            $offerKeys = buildOfferOrNpcMatchKeys(
+                (string) ($offer['companyUrl'] ?? ''),
+                (string) ($offer['companyName'] ?? '')
+            );
+            $isSameCompany = false;
+            foreach (array_keys($offerKeys) as $candidateKey) {
+                if (isset($companyKeys[$candidateKey])) {
+                    $isSameCompany = true;
+                    break;
+                }
+            }
+            if (!$isSameCompany) {
+                continue;
+            }
+
+            $salaryRawValue = $offer['salaryValue'] ?? null;
+            $salaryValue = is_numeric($salaryRawValue)
+                ? (float) $salaryRawValue
+                : normalizeSalaryNumberString((string) ($offer['salary'] ?? ''));
+            if ($salaryValue === null || $salaryValue <= 0) {
+                continue;
+            }
+
+            addCurrencyAmountToTotals(
+                $totals,
+                $salaryValue,
+                trim((string) ($offer['salaryCurrency'] ?? '')),
+                sanitizeCssFlagClass((string) ($offer['salaryFlagClass'] ?? ''))
+            );
+        }
+    }
+
+    $result = array_values($totals);
+    usort($result, static function (array $a, array $b): int {
+        return strcasecmp((string) ($a['currencyCode'] ?? ''), (string) ($b['currencyCode'] ?? ''));
+    });
+
+    return $result;
+}
+
+function renderOwnedCompaniesWalletHtml(array $balances, array $requiredBalances = [], int $maxVisible = 9999): string
+{
+    if ($maxVisible < 1) {
+        $maxVisible = 1;
+    }
+
+    $visible = array_slice($balances, 0, $maxVisible);
+    $hiddenCount = max(0, count($balances) - count($visible));
+
+    $requiredVisible = array_slice($requiredBalances, 0, $maxVisible);
+    $requiredHiddenCount = max(0, count($requiredBalances) - count($requiredVisible));
+
+    $availableByCurrency = [];
+    foreach ($balances as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $currencyCode = normalizeWalletCurrencyCode(
+            (string) ($row['currencyCode'] ?? ''),
+            (string) ($row['flagClass'] ?? '')
+        );
+        if ($currencyCode === '') {
+            continue;
+        }
+
+        $amountValueRaw = $row['amountValue'] ?? null;
+        $amountValue = is_numeric($amountValueRaw)
+            ? (float) $amountValueRaw
+            : normalizeSalaryNumberString((string) ($row['amountDisplay'] ?? ''));
+        if ($amountValue === null) {
+            continue;
+        }
+
+        $key = strtolower($currencyCode);
+        $availableByCurrency[$key] = ($availableByCurrency[$key] ?? 0.0) + $amountValue;
+    }
+
+    $requiredByCurrency = [];
+    foreach ($requiredBalances as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $currencyCode = normalizeWalletCurrencyCode(
+            (string) ($row['currencyCode'] ?? ''),
+            (string) ($row['flagClass'] ?? '')
+        );
+        if ($currencyCode === '') {
+            continue;
+        }
+
+        $amountValueRaw = $row['amountValue'] ?? null;
+        $amountValue = is_numeric($amountValueRaw)
+            ? (float) $amountValueRaw
+            : normalizeSalaryNumberString((string) ($row['amountDisplay'] ?? ''));
+        if ($amountValue === null) {
+            continue;
+        }
+
+        $key = strtolower($currencyCode);
+        $requiredByCurrency[$key] = ($requiredByCurrency[$key] ?? 0.0) + $amountValue;
+    }
+
+    ob_start();
+    ?>
+    <div class="owned-wallet-box">
+        <span class="owned-wallet-title">Monedas disponibles:</span>
+        <div class="owned-wallet-list">
+            <?php if ($visible === []): ?>
+                <span style="color:var(--muted);">No detectadas (sincroniza empresas).</span>
+            <?php else: ?>
+                <?php foreach ($visible as $row): ?>
+                    <?php if (!is_array($row)) { continue; } ?>
+                    <?php $flagClass = sanitizeCssFlagClass((string) ($row['flagClass'] ?? '')); ?>
+                    <?php $amountDisplay = trim((string) ($row['amountDisplay'] ?? '0.00')); ?>
+                    <?php $currencyCode = trim((string) ($row['currencyCode'] ?? '')); ?>
+                    <?php $currencyKey = strtolower(normalizeWalletCurrencyCode($currencyCode, $flagClass)); ?>
+                    <?php $availableAmount = (float) ($availableByCurrency[$currencyKey] ?? 0.0); ?>
+                    <?php $requiredAmount = (float) ($requiredByCurrency[$currencyKey] ?? 0.0); ?>
+                    <?php $isShort = $currencyKey !== '' && $requiredAmount > 0 && ($availableAmount + 0.00001) < $requiredAmount; ?>
+                    <span class="owned-wallet-chip" <?= $isShort ? 'style="border-color:#f0c0c0;background:#fff1f1;color:#7a2f2f;"' : '' ?> title="Disponible <?= esc($amountDisplay) ?> <?= esc($currencyCode) ?>">
+                        <?php if ($flagClass !== ''): ?>
+                            <span class="xflagsSmall <?= esc($flagClass) ?>"></span>
+                        <?php endif; ?>
+                        <span><?= esc($amountDisplay) ?></span>
+                        <?php if ($currencyCode !== ''): ?>
+                            <span><?= esc($currencyCode) ?></span>
+                        <?php endif; ?>
+                    </span>
+                <?php endforeach; ?>
+                <?php if ($hiddenCount > 0): ?>
+                    <span class="owned-wallet-more">+<?= (int) $hiddenCount ?> mas</span>
+                <?php endif; ?>
+            <?php endif; ?>
+        </div>
+
+        <span class="owned-wallet-title" style="margin-top:2px;">Monedas requeridas:</span>
+        <div class="owned-wallet-list">
+            <?php if ($requiredVisible === []): ?>
+                <span style="color:var(--muted);">No calculadas aun (sincroniza regiones/NPCs/ofertas).</span>
+            <?php else: ?>
+                <?php foreach ($requiredVisible as $row): ?>
+                    <?php if (!is_array($row)) { continue; } ?>
+                    <?php $flagClass = sanitizeCssFlagClass((string) ($row['flagClass'] ?? '')); ?>
+                    <?php $amountDisplay = trim((string) ($row['amountDisplay'] ?? '0.00')); ?>
+                    <?php $currencyCode = trim((string) ($row['currencyCode'] ?? '')); ?>
+                    <?php $currencyKey = strtolower(normalizeWalletCurrencyCode($currencyCode, $flagClass)); ?>
+                    <?php $availableAmount = (float) ($availableByCurrency[$currencyKey] ?? 0.0); ?>
+                    <?php $requiredAmount = (float) ($requiredByCurrency[$currencyKey] ?? 0.0); ?>
+                    <?php $isShort = $currencyKey !== '' && $requiredAmount > 0 && ($availableAmount + 0.00001) < $requiredAmount; ?>
+                    <span class="owned-wallet-chip" <?= $isShort ? 'style="border-color:#f0c0c0;background:#fff1f1;color:#7a2f2f;"' : '' ?> title="Requerido <?= esc($amountDisplay) ?> <?= esc($currencyCode) ?>">
+                        <?php if ($flagClass !== ''): ?>
+                            <span class="xflagsSmall <?= esc($flagClass) ?>"></span>
+                        <?php endif; ?>
+                        <span><?= esc($amountDisplay) ?></span>
+                        <?php if ($currencyCode !== ''): ?>
+                            <span><?= esc($currencyCode) ?></span>
+                        <?php endif; ?>
+                    </span>
+                <?php endforeach; ?>
+                <?php if ($requiredHiddenCount > 0): ?>
+                    <span class="owned-wallet-more">+<?= (int) $requiredHiddenCount ?> mas</span>
+                <?php endif; ?>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php
+
+    return trim((string) ob_get_clean());
+}
+
 function groupOwnedCompaniesByRegion(array $companies): array
 {
     $grouped = [];
@@ -2165,10 +4163,6 @@ function buildOwnedCompanyNpcCoverage(?array $syncMeta): array
     $syncedNpcs = is_array($syncMeta['npcs'] ?? null) ? $syncMeta['npcs'] : [];
     foreach ($syncedNpcs as $npcRow) {
         if (!is_array($npcRow)) {
-            continue;
-        }
-
-        if (!(bool) ($npcRow['companyOwnedByUserOrMu'] ?? false)) {
             continue;
         }
 
@@ -2228,6 +4222,239 @@ function summarizeRegionNpcOwnership(?array $syncMeta): array
 
     $summary['hasControl'] = $summary['ownedCount'] > 0;
     return $summary;
+}
+
+function hasAnySharedCompanyKey(array $leftKeys, array $rightKeys): bool
+{
+    if ($leftKeys === [] || $rightKeys === []) {
+        return false;
+    }
+
+    foreach (array_keys($leftKeys) as $candidateKey) {
+        if (isset($rightKeys[$candidateKey])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function buildOwnedCompaniesKeyIndex(array $ownedCompaniesInRegion): array
+{
+    $index = [];
+
+    foreach ($ownedCompaniesInRegion as $ownedCompany) {
+        if (!is_array($ownedCompany)) {
+            continue;
+        }
+
+        $companyKeys = buildCompanyMatchKeys($ownedCompany);
+        foreach (array_keys($companyKeys) as $companyKey) {
+            $index[$companyKey] = true;
+        }
+    }
+
+    return $index;
+}
+
+function resolveOwnedCompanyVisualState(?array $syncMeta, array $company, array $ownedCompaniesInRegion = []): array
+{
+    $default = [
+        'className' => 'state-light-red',
+        'reason' => 'default-light-red',
+    ];
+
+    if (!is_array($syncMeta)) {
+        return $default;
+    }
+
+    $companyKeys = buildCompanyMatchKeys($company);
+    if ($companyKeys === []) {
+        return $default;
+    }
+
+    $regionOwnership = summarizeRegionNpcOwnership($syncMeta);
+    $regionNpcs = is_array($syncMeta['npcs'] ?? null) ? (array) $syncMeta['npcs'] : [];
+    $regionHasWorkedNpc = false;
+    foreach ($regionNpcs as $npcRow) {
+        if (is_array($npcRow) && ($npcRow['workedToday'] ?? null) === true) {
+            $regionHasWorkedNpc = true;
+            break;
+        }
+    }
+
+    $companyNpcRows = [];
+    foreach ($regionNpcs as $npcRow) {
+        if (!is_array($npcRow)) {
+            continue;
+        }
+
+        $npcKeys = buildOfferOrNpcMatchKeys(
+            (string) ($npcRow['companyUrl'] ?? ''),
+            (string) ($npcRow['company'] ?? '')
+        );
+        if (!hasAnySharedCompanyKey($companyKeys, $npcKeys)) {
+            continue;
+        }
+
+        $companyNpcRows[] = $npcRow;
+    }
+
+    $companyMaxNpcSalary = getMaxNpcSalaryValue($companyNpcRows);
+    $regionMaxNpcSalary = extractRegionMaxSalaryValue($syncMeta);
+
+    $ownedCompaniesKeyIndex = buildOwnedCompaniesKeyIndex($ownedCompaniesInRegion);
+    if ($ownedCompaniesKeyIndex === []) {
+        $ownedCompaniesKeyIndex = buildOwnedCompaniesKeyIndex([$company]);
+    }
+
+    $jobOffers = is_array($syncMeta['jobOffers'] ?? null) ? (array) $syncMeta['jobOffers'] : [];
+    $currentCompanyOfferMax = null;
+    $rivalOfferMax = null;
+    foreach ($jobOffers as $offer) {
+        if (!is_array($offer)) {
+            continue;
+        }
+
+        $offerKeys = buildOfferOrNpcMatchKeys(
+            (string) ($offer['companyUrl'] ?? ''),
+            (string) ($offer['companyName'] ?? '')
+        );
+        $offerValueRaw = $offer['salaryValue'] ?? null;
+        $offerValue = is_numeric($offerValueRaw)
+            ? (float) $offerValueRaw
+            : normalizeSalaryNumberString((string) ($offer['salary'] ?? ''));
+        if ($offerValue === null || $offerValue <= 0) {
+            continue;
+        }
+
+        $isOfferMine = hasAnySharedCompanyKey($ownedCompaniesKeyIndex, $offerKeys);
+        $isCurrentCompanyOffer = hasAnySharedCompanyKey($companyKeys, $offerKeys);
+
+        if ($isCurrentCompanyOffer) {
+            if ($currentCompanyOfferMax === null || $offerValue > $currentCompanyOfferMax) {
+                $currentCompanyOfferMax = $offerValue;
+            }
+        }
+
+        if (!$isOfferMine) {
+            if ($rivalOfferMax === null || $offerValue > $rivalOfferMax) {
+                $rivalOfferMax = $offerValue;
+            }
+        }
+    }
+
+    $salaryCeiling = $regionMaxNpcSalary;
+    if ($companyMaxNpcSalary !== null && ($salaryCeiling === null || $companyMaxNpcSalary > $salaryCeiling)) {
+        $salaryCeiling = $companyMaxNpcSalary;
+    }
+    $highSalary = $salaryCeiling !== null && $salaryCeiling > 80;
+    $highRivalOffer = $rivalOfferMax !== null && $rivalOfferMax > 80;
+
+    if ($regionHasWorkedNpc) {
+        $hasOwnedWorked = (int) ($regionOwnership['ownedWorkedCount'] ?? 0) > 0;
+        if ($hasOwnedWorked) {
+            return [
+                'className' => 'state-dark-green',
+                'reason' => 'worked-owned-offers-ignored-until-next-day',
+            ];
+        }
+
+        if ($highSalary || $highRivalOffer) {
+            return [
+                'className' => 'salary-risk-high',
+                'reason' => $highRivalOffer ? 'worked-rival-over-80' : 'worked-salary-over-80',
+            ];
+        }
+
+        return [
+            'className' => 'state-dark-red',
+            'reason' => 'worked-lost',
+        ];
+    }
+
+    if ($highSalary || $highRivalOffer) {
+        return [
+            'className' => 'state-light-gray',
+            'reason' => $highRivalOffer ? 'pending-rival-over-80' : 'pending-salary-over-80',
+        ];
+    }
+
+    $hasNpcsInMyCompanies = (int) ($regionOwnership['ownedCount'] ?? 0) > 0;
+
+    if ($hasNpcsInMyCompanies) {
+        $baselineSalary = $companyMaxNpcSalary ?? $regionMaxNpcSalary;
+        $rivalBeatsBy20 = $baselineSalary !== null
+            && $baselineSalary > 0
+            && $rivalOfferMax !== null
+            && $rivalOfferMax > ($baselineSalary * 1.2);
+
+        if ($rivalBeatsBy20 && $rivalOfferMax !== null && $rivalOfferMax > 80) {
+            return [
+                'className' => 'salary-risk-high',
+                'reason' => 'rival-over-20-and-over-80',
+            ];
+        }
+
+        if ($rivalBeatsBy20) {
+            return [
+                'className' => 'state-dark-red',
+                'reason' => 'rival-over-20',
+            ];
+        }
+
+        return [
+            'className' => 'state-light-green',
+            'reason' => 'holding-npcs',
+        ];
+    }
+
+    $baselineSalary = $regionMaxNpcSalary ?? $companyMaxNpcSalary;
+
+    $myOfferBeatsBy20 = $baselineSalary !== null
+        && $baselineSalary > 0
+        && $currentCompanyOfferMax !== null
+        && $currentCompanyOfferMax > ($baselineSalary * 1.2);
+
+    $rivalBeatsMineAndSalary = $baselineSalary !== null
+        && $baselineSalary > 0
+        && $rivalOfferMax !== null
+        && $rivalOfferMax > $baselineSalary
+        && ($currentCompanyOfferMax === null || $rivalOfferMax > $currentCompanyOfferMax);
+
+    if ($rivalBeatsMineAndSalary) {
+        return [
+            'className' => 'state-light-red',
+            'reason' => 'rival-beats-my-offer-and-salary',
+        ];
+    }
+
+    return [
+        'className' => $myOfferBeatsBy20 ? 'state-light-green' : 'state-light-red',
+        'reason' => $myOfferBeatsBy20 ? 'my-offer-over-20' : 'my-offer-not-enough',
+    ];
+}
+
+function buildRegionCompanyVisualStates(?array $syncMeta, array $ownedCompaniesInRegion): array
+{
+    $states = [];
+
+    foreach ($ownedCompaniesInRegion as $ownedCompany) {
+        if (!is_array($ownedCompany)) {
+            continue;
+        }
+
+        $state = resolveOwnedCompanyVisualState($syncMeta, $ownedCompany, $ownedCompaniesInRegion);
+        $companyKeys = buildCompanyMatchKeys($ownedCompany);
+        foreach (array_keys($companyKeys) as $companyKey) {
+            $states[$companyKey] = [
+                'className' => trim((string) ($state['className'] ?? '')),
+                'reason' => trim((string) ($state['reason'] ?? '')),
+            ];
+        }
+    }
+
+    return $states;
 }
 
 function renderCompanyRegionNpcsHtml(?array $syncMeta): string
@@ -2341,11 +4568,6 @@ function renderOwnedCompaniesRegionHtml(array $companies, ?array $syncMeta = nul
     }
 
     $npcCoverageByCompany = buildOwnedCompanyNpcCoverage($syncMeta);
-    $regionNpcOwnership = summarizeRegionNpcOwnership($syncMeta);
-    $regionHasNpcControl = (bool) ($regionNpcOwnership['hasControl'] ?? false);
-    $rowCardStyle = $regionHasNpcControl
-        ? 'padding:6px 8px;border:1px solid #b8e1bf;border-radius:8px;background:#eef9f0;'
-        : 'padding:6px 8px;border:1px solid #dbe3ef;border-radius:8px;background:#fff;';
 
     ob_start();
     ?>
@@ -2361,6 +4583,11 @@ function renderOwnedCompaniesRegionHtml(array $companies, ?array $syncMeta = nul
             <?php $companyCoverage = is_array($npcCoverageByCompany[$companyKey] ?? null) ? $npcCoverageByCompany[$companyKey] : ['total' => 0, 'worked' => 0]; ?>
             <?php $companyNpcTotal = (int) ($companyCoverage['total'] ?? 0); ?>
             <?php $companyNpcWorked = (int) ($companyCoverage['worked'] ?? 0); ?>
+            <?php $companyHasNpcControl = $companyNpcWorked > 0; ?>
+            <?php $rowCardStyle = $companyHasNpcControl
+                ? 'padding:6px 8px;border:1px solid #b8e1bf;border-radius:8px;background:#eef9f0;'
+                : 'padding:6px 8px;border:1px solid #dbe3ef;border-radius:8px;background:#fff;';
+            ?>
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;<?= esc($rowCardStyle) ?>">
                 <?php if ($productImageUrl !== ''): ?>
                     <img src="<?= esc($productImageUrl) ?>" alt="<?= esc($productTitle !== '' ? $productTitle : 'Producto') ?>" title="<?= esc($productTitle !== '' ? $productTitle : 'Producto') ?>" style="width:20px;height:20px;">
@@ -2373,8 +4600,8 @@ function renderOwnedCompaniesRegionHtml(array $companies, ?array $syncMeta = nul
                 <?php if ($businessType !== ''): ?>
                     <small style="color:#5a6a83;"><?= esc($businessType) ?></small>
                 <?php endif; ?>
-                <small style="color:<?= $regionHasNpcControl ? '#1f6b31' : '#5a6a83' ?>;font-weight:600;">
-                    <?= $regionHasNpcControl ? 'Control NPC: SI' : 'Control NPC: NO' ?>
+                <small style="color:<?= $companyHasNpcControl ? '#1f6b31' : '#5a6a83' ?>;font-weight:600;">
+                    <?= $companyHasNpcControl ? 'Control NPC: SI' : 'Control NPC: NO' ?>
                 </small>
                 <?php if ($companyNpcTotal > 0): ?>
                     <small style="color:#1f6b31;font-weight:600;">NPCs region en esta empresa: <?= $companyNpcTotal ?> | Ya trabajaron: <?= $companyNpcWorked ?></small>
@@ -2690,16 +4917,37 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
             padding: 8px;
             background: #fff;
             position: relative;
+            color: #14243a;
         }
 
-        .owned-company-card.npc-control-yes {
+        .owned-company-card.state-light-green {
             border-color: #b8e1bf;
             background: #eef9f0;
+            color: #14243a;
         }
 
-        .owned-company-card.npc-control-no {
+        .owned-company-card.state-light-red {
             border-color: #f0c0c0;
             background: #fff1f1;
+            color: #14243a;
+        }
+
+        .owned-company-card.state-dark-green {
+            border-color: #1f6b31;
+            background: linear-gradient(140deg, #0f3d1c 0%, #155426 60%, #1f6b31 100%);
+            color: #eef7f0;
+        }
+
+        .owned-company-card.state-dark-red {
+            border-color: #8a2f2f;
+            background: linear-gradient(140deg, #421717 0%, #632424 60%, #8a2f2f 100%);
+            color: #fff0f0;
+        }
+
+        .owned-company-card.state-light-gray {
+            border-color: #c3c8d0;
+            background: #eef1f5;
+            color: #14243a;
         }
 
         .owned-company-card.salary-risk-high {
@@ -2708,16 +4956,31 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
             color: #e7e7e7;
         }
 
+        .owned-company-card.state-dark-green .owned-company-subtitle,
+        .owned-company-card.state-dark-green small,
+        .owned-company-card.state-dark-green .sync-inline-status,
+        .owned-company-card.state-dark-green .owned-company-npcs,
+        .owned-company-card.state-dark-green [data-company-npc-summary],
+        .owned-company-card.state-dark-green [data-company-coverage-summary],
+        .owned-company-card.state-dark-red .owned-company-subtitle,
+        .owned-company-card.state-dark-red small,
+        .owned-company-card.state-dark-red .sync-inline-status,
+        .owned-company-card.state-dark-red .owned-company-npcs,
+        .owned-company-card.state-dark-red [data-company-npc-summary],
+        .owned-company-card.state-dark-red [data-company-coverage-summary],
         .owned-company-card.salary-risk-high .owned-company-subtitle,
         .owned-company-card.salary-risk-high small,
         .owned-company-card.salary-risk-high .sync-inline-status,
         .owned-company-card.salary-risk-high .owned-company-npcs,
-        .owned-company-card.salary-risk-high [data-company-npc-summary] {
-            color: #cfd2d6 !important;
+        .owned-company-card.salary-risk-high [data-company-npc-summary],
+        .owned-company-card.salary-risk-high [data-company-coverage-summary] {
+            color: #d7dce4 !important;
         }
 
+        .owned-company-card.state-dark-green a,
+        .owned-company-card.state-dark-red a,
         .owned-company-card.salary-risk-high a {
-            color: #9fd0ff;
+            color: #b8ddff;
         }
 
         .owned-company-control-badge {
@@ -2777,6 +5040,53 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
             font-size: 12px;
             color: #30445f;
             line-height: 1.35;
+        }
+
+        .owned-wallet-box {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-bottom: 8px;
+            padding: 7px 8px;
+            border: 1px dashed #c8d5e7;
+            border-radius: 8px;
+            background: #f9fbff;
+        }
+
+        .owned-wallet-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #274366;
+        }
+
+        .owned-wallet-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .owned-wallet-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: #274366;
+            padding: 2px 6px;
+            border: 1px solid #d8e2f0;
+            border-radius: 999px;
+            background: #fff;
+            line-height: 1.2;
+        }
+
+        .owned-wallet-more {
+            display: inline-flex;
+            align-items: center;
+            font-size: 11px;
+            color: #5a6a83;
+            padding: 2px 6px;
+            border: 1px solid #d8e2f0;
+            border-radius: 999px;
+            background: #f3f7fd;
         }
 
         .owned-company-npcs ul {
@@ -2932,8 +5242,29 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                 </div>
             <?php endif; ?>
 
+            <?php if ($companyOfferStatus !== ''): ?>
+                <div class="sync-alert <?= $companyOfferStatus === 'ok' ? 'ok' : 'error' ?>">
+                    <strong><?= $companyOfferStatus === 'ok' ? 'Oferta laboral procesada' : 'Error al procesar oferta laboral' ?></strong>
+                    <?php if ($companyOfferMessage !== ''): ?>
+                        | <?= esc($companyOfferMessage) ?>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($bulkRegionSyncStatus !== ''): ?>
+                <div class="sync-alert <?= $bulkRegionSyncStatus === 'ok' ? 'ok' : 'error' ?>">
+                    <strong><?= $bulkRegionSyncStatus === 'ok' ? 'Regiones de empresas sincronizadas' : 'Error al sincronizar regiones de empresas' ?></strong>
+                    <?php if ($bulkRegionSyncStatus === 'ok'): ?>
+                        | Regiones: <?= (int) $bulkRegionSyncCount ?>/<?= (int) $bulkRegionSyncTarget ?>
+                        | NPCs: <?= (int) $bulkRegionSyncNpcCount ?>
+                    <?php endif; ?>
+                    <?php if ($bulkRegionSyncMessage !== ''): ?>
+                        | <?= esc($bulkRegionSyncMessage) ?>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+
             <form method="post" class="filters" style="margin-bottom:10px;">
-                <input type="hidden" name="action" value="sync-owned-companies">
                 <input type="hidden" name="country" value="<?= esc($selectedCountry) ?>">
                 <input type="hidden" name="owner" value="<?= esc($selectedOwner) ?>">
                 <input type="hidden" name="salaryRange" value="<?= esc($selectedSalaryRange) ?>">
@@ -2942,7 +5273,8 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                     <input type="hidden" name="resourceType[]" value="<?= esc((string) $selectedType) ?>">
                 <?php endforeach; ?>
                 <div style="grid-column: 1 / -1; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                    <button type="submit" class="sync-btn">Sincronizar empresas</button>
+                    <button type="submit" class="sync-btn" name="action" value="sync-owned-companies">Sincronizar empresas</button>
+                    <button type="submit" class="sync-btn" name="action" value="sync-owned-regions-npcs" title="Actualiza NPCs y ofertas de trabajo en regiones de mis empresas">Sincronizar regiones</button>
                     <span class="filter-hint" style="margin-top:0;">
                         Fuente: <a href="https://vara.e-sim.org/business.html?businessType=COMPANIES" target="_blank" rel="noopener noreferrer">business.html?businessType=COMPANIES</a>
                         <?php if (!empty($ownedCompaniesCache['syncedAtDisplay'])): ?>
@@ -2956,13 +5288,14 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                         <details class="sync-details">
                             <summary>Ver mis empresas sincronizadas</summary>
                             <div style="margin-top:8px; display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:8px;">
+                                <div style="grid-column: 1 / -1;">
+                                    <?= renderOwnedCompaniesWalletHtml($ownedCompanyWalletBalances, $ownedCompanyRequiredWalletBalances) ?>
+                                </div>
                                 <?php foreach ($ownedCompanies as $company): ?>
                                     <?php if (!is_array($company)) { continue; } ?>
                                     <?php $companyRegionId = trim((string) ($company['regionId'] ?? '')); ?>
                                     <?php $companySyncMeta = $companyRegionId !== '' && is_array($npcCache['regions'][$companyRegionId] ?? null) ? $npcCache['regions'][$companyRegionId] : null; ?>
                                     <?php $companyRegionCatalog = $companyRegionId !== '' && is_array($regionCatalogById[$companyRegionId] ?? null) ? $regionCatalogById[$companyRegionId] : null; ?>
-                                    <?php $companyRegionOwnership = summarizeRegionNpcOwnership($companySyncMeta); ?>
-                                    <?php $companyRegionHasControl = (bool) ($companyRegionOwnership['hasControl'] ?? false); ?>
                                     <?php $companyCoverageByKey = buildOwnedCompanyNpcCoverage($companySyncMeta); ?>
                                     <?php $companyUrlForCoverage = toAbsoluteEsimUrl(trim((string) ($company['companyUrl'] ?? ''))); ?>
                                     <?php $companyNameForCoverage = trim((string) ($company['companyName'] ?? '')); ?>
@@ -2970,9 +5303,14 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                                     <?php $companyCoverage = is_array($companyCoverageByKey[$companyCoverageKey] ?? null) ? $companyCoverageByKey[$companyCoverageKey] : ['total' => 0, 'worked' => 0]; ?>
                                     <?php $companyNpcCoverageTotal = (int) ($companyCoverage['total'] ?? 0); ?>
                                     <?php $companyNpcCoverageWorked = (int) ($companyCoverage['worked'] ?? 0); ?>
+                                    <?php $companyRegionHasControl = $companyNpcCoverageWorked > 0; ?>
+                                    <?php $companyRegionOwnership = summarizeRegionNpcOwnership($companySyncMeta); ?>
                                     <?php $companyRegionNpcs = is_array($companySyncMeta['npcs'] ?? null) ? array_slice((array) $companySyncMeta['npcs'], 0, 3) : []; ?>
                                     <?php $companyRegionMaxSalary = extractRegionMaxSalaryValue($companySyncMeta); ?>
-                                    <?php $companySalaryRiskHigh = $companyRegionMaxSalary !== null && $companyRegionMaxSalary > 60; ?>
+                                    <?php $companySalaryRiskHigh = $companyRegionMaxSalary !== null && $companyRegionMaxSalary > 80; ?>
+                                    <?php $ownedCompaniesInSameRegion = $companyRegionId !== '' && is_array($ownedCompaniesByRegion[$companyRegionId] ?? null) ? (array) $ownedCompaniesByRegion[$companyRegionId] : []; ?>
+                                    <?php $companyVisualState = resolveOwnedCompanyVisualState($companySyncMeta, $company, $ownedCompaniesInSameRegion); ?>
+                                    <?php $companyStateClass = trim((string) ($companyVisualState['className'] ?? 'state-light-red')); ?>
                                     <?php $syncRegionNameForCard = trim((string) ($company['regionName'] ?? '')); ?>
                                     <?php if ($syncRegionNameForCard === '' && is_array($companyRegionCatalog)): ?>
                                         <?php $syncRegionNameForCard = trim((string) ($companyRegionCatalog['name'] ?? '')); ?>
@@ -2985,6 +5323,13 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                                         <?php $syncRegionUrlForCard = 'https://vara.e-sim.org/region.html?id=' . rawurlencode($companyRegionId); ?>
                                     <?php endif; ?>
                                     <?php $syncRegionOwnerForCard = is_array($companyRegionCatalog) ? trim((string) ($companyRegionCatalog['currentOwner'] ?? '')) : ''; ?>
+                                    <?php $companyRegionCountryId = is_array($companySyncMeta)
+                                        ? trim((string) ($companySyncMeta['countryId'] ?? ''))
+                                        : '';
+                                    ?>
+                                    <?php if ($companyRegionCountryId === '' && is_array($companyRegionCatalog)): ?>
+                                        <?php $companyRegionCountryId = trim((string) ($companyRegionCatalog['countryId'] ?? '')); ?>
+                                    <?php endif; ?>
                                     <?php $controllerCountryForCard = is_array($companySyncMeta) ? trim((string) ($companySyncMeta['ownerAtSync'] ?? '')) : $syncRegionOwnerForCard; ?>
                                     <?php $controllerFlagClassForCard = is_array($companySyncMeta)
                                         ? sanitizeCssFlagClass((string) ($companySyncMeta['ownerAtSyncFlagClass'] ?? ''))
@@ -2993,7 +5338,7 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                                     <?php if ($controllerFlagClassForCard === '' && $controllerCountryForCard !== ''): ?>
                                         <?php $controllerFlagClassForCard = sanitizeCssFlagClass(flagClassFromCountryName($controllerCountryForCard)); ?>
                                     <?php endif; ?>
-                                    <div class="owned-company-card <?= $companyRegionHasControl ? 'npc-control-yes' : 'npc-control-no' ?> <?= $companySalaryRiskHigh ? 'salary-risk-high' : '' ?>" data-company-region-id="<?= esc($companyRegionId) ?>">
+                                    <div class="owned-company-card <?= esc($companyStateClass) ?> <?= $companyRegionHasControl ? 'npc-control-yes' : 'npc-control-no' ?>" data-company-region-id="<?= esc($companyRegionId) ?>" data-company-coverage-key="<?= esc($companyCoverageKey) ?>" data-company-state-class="<?= esc($companyStateClass) ?>">
                                         <?php if ($controllerFlagClassForCard !== ''): ?>
                                             <span class="owned-company-flag-corner" title="Controla: <?= esc($controllerCountryForCard !== '' ? $controllerCountryForCard : 'Desconocido') ?>" data-company-owner-flag>
                                                 <span class="xflagsSmall <?= esc($controllerFlagClassForCard) ?>"></span>
@@ -3022,15 +5367,39 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                                                 <?= $companyRegionHasControl ? 'Control NPC SI' : 'Control NPC NO' ?>
                                             </span>
                                             <?php if ($companyRegionId !== ''): ?>
-                                                <form method="post" class="sync-region-form" style="margin:0;" data-region-id="<?= esc($companyRegionId) ?>" data-company-card-sync="1">
-                                                    <input type="hidden" name="action" value="sync-region-npcs">
-                                                    <input type="hidden" name="async" value="1">
-                                                    <input type="hidden" name="regionId" value="<?= esc($companyRegionId) ?>">
-                                                    <input type="hidden" name="regionName" value="<?= esc($syncRegionNameForCard) ?>">
-                                                    <input type="hidden" name="regionUrl" value="<?= esc($syncRegionUrlForCard) ?>">
-                                                    <input type="hidden" name="currentOwnerSnapshot" value="<?= esc($syncRegionOwnerForCard) ?>">
-                                                    <button type="submit" class="sync-btn icon-only" title="Sincronizar region NPC" aria-label="Sincronizar region NPC" data-loading-label="...">&#8635;</button>
-                                                </form>
+                                                <button
+                                                    type="button"
+                                                    class="sync-btn icon-only company-card-sync-btn"
+                                                    title="Sincronizar region NPC"
+                                                    aria-label="Sincronizar region NPC"
+                                                    data-loading-label="..."
+                                                    data-region-id="<?= esc($companyRegionId) ?>"
+                                                    data-region-name="<?= esc($syncRegionNameForCard) ?>"
+                                                    data-region-url="<?= esc($syncRegionUrlForCard) ?>"
+                                                    data-country-id="<?= esc($companyRegionCountryId) ?>"
+                                                    data-owner-snapshot="<?= esc($syncRegionOwnerForCard) ?>"
+                                                >&#8635;</button>
+                                                <button
+                                                    type="button"
+                                                    class="sync-btn company-card-job-offers-btn"
+                                                    title="Consultar ofertas laborales"
+                                                    aria-label="Consultar ofertas laborales"
+                                                    data-default-label="Ver ofertas"
+                                                    data-loading-label="Consultando..."
+                                                    data-region-id="<?= esc($companyRegionId) ?>"
+                                                    data-country-id="<?= esc($companyRegionCountryId) ?>"
+                                                >Ver ofertas</button>
+                                                <button
+                                                    type="button"
+                                                    class="sync-btn company-card-manage-offers-btn"
+                                                    title="Gestionar ofertas de esta empresa"
+                                                    aria-label="Gestionar ofertas de esta empresa"
+                                                    data-default-label="Gestionar ofertas"
+                                                    data-loading-label="Cargando..."
+                                                    data-company-id="<?= esc((string) ($company['companyId'] ?? '')) ?>"
+                                                    data-company-url="<?= esc($companyUrl) ?>"
+                                                    data-region-id="<?= esc($companyRegionId) ?>"
+                                                >Gestionar ofertas</button>
                                             <?php endif; ?>
                                         </div>
                                         <div style="margin-top:4px; font-size:12px; color:var(--muted);">
@@ -3041,9 +5410,7 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                                                 | Pais: <?= esc((string) $company['countryName']) ?>
                                             <?php endif; ?>
                                             | <span data-company-npc-summary>En empresas propias: <?= (int) ($companyRegionOwnership['ownedCount'] ?? 0) ?>/<?= (int) ($companyRegionOwnership['totalCount'] ?? 0) ?> NPCs</span>
-                                            <?php if ($companyNpcCoverageTotal > 0): ?>
-                                                | En esta empresa: <?= $companyNpcCoverageTotal ?> (Ya trabajaron: <?= $companyNpcCoverageWorked ?>)
-                                            <?php endif; ?>
+                                            | <span data-company-coverage-summary>En esta empresa: <?= $companyNpcCoverageTotal ?> (Ya trabajaron: <?= $companyNpcCoverageWorked ?>)</span>
                                         </div>
                                         <div class="owned-company-npcs" data-company-npcs-list>
                                             <?= renderCompanyRegionNpcsHtml($companySyncMeta) ?>
@@ -3051,6 +5418,7 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                                         <div class="owned-company-npcs" data-company-job-offers-list>
                                             <?= renderCompanyRegionJobOffersHtml($companySyncMeta) ?>
                                         </div>
+                                        <div class="owned-company-npcs" data-company-offer-manage-box></div>
                                         <div class="sync-inline-status" data-company-sync-status></div>
                                     </div>
                                 <?php endforeach; ?>
@@ -3071,13 +5439,50 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                 <?php endforeach; ?>
             </form>
 
+        </div>
+
+        <div class="card">
+            <div class="filters" style="margin-bottom:0;">
+                <div style="grid-column: 1 / -1; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <button type="button" class="sync-btn" id="bulk-scan-full-btn">Barrido completo de regiones filtradas</button>
+                    <button type="button" class="sync-btn" id="bulk-scan-pending-btn">Barrido no trabajadas filtradas</button>
+                    <span class="filter-hint" style="margin-top:0;">
+                        <?php if (!empty($npcCache['ownedRegionsLastSyncedAtDisplay'])): ?>
+                            Ultima sync mis empresas: <?= esc((string) $npcCache['ownedRegionsLastSyncedAtDisplay']) ?>
+                            <?php if (!empty($npcCache['ownedRegionsLastSyncRegionCount'])): ?>
+                                | Regiones: <?= (int) $npcCache['ownedRegionsLastSyncRegionCount'] ?>
+                            <?php endif; ?>
+                            <br />
+                        <?php endif; ?>
+                        <?php if (!empty($npcCache['fullSweepLastSyncedAtDisplay'])): ?>
+                            Ultimo barrido completo: <?= esc((string) $npcCache['fullSweepLastSyncedAtDisplay']) ?>
+                            <?php if (!empty($npcCache['fullSweepLastSyncRegionCount'])): ?>
+                                | Regiones: <?= (int) $npcCache['fullSweepLastSyncRegionCount'] ?>
+                            <?php endif; ?>
+                            <br />
+                        <?php else: ?>
+                            Aun no se ha ejecutado un barrido completo.
+                        <?php endif; ?>
+                        <?php if (!empty($npcCache['pendingSweepLastSyncedAtDisplay'])): ?>
+                            | Ultimo barrido no trabajadas: <?= esc((string) $npcCache['pendingSweepLastSyncedAtDisplay']) ?>
+                            <?php if (!empty($npcCache['pendingSweepLastSyncRegionCount'])): ?>
+                                (Regiones: <?= (int) $npcCache['pendingSweepLastSyncRegionCount'] ?>)
+                            <?php endif; ?>
+                        <?php endif; ?>
+                    </span>
+                </div>
+                <div id="bulk-scan-status" class="sync-inline-status" style="grid-column: 1 / -1;"></div>
+            </div>
+        </div>
+
+        <div class="card">
             <form method="get" class="filters" id="filters-form">
                 <div>
-                    <label for="country">Pais</label>
-                    <select id="country" name="country">
+                    <label for="owner">Ocupante (currentOwner)</label>
+                    <select id="owner" name="owner">
                         <option value="">Todos</option>
-                        <?php foreach ($countryList as $country): ?>
-                            <option value="<?= esc((string) $country) ?>" <?= $selectedCountry === (string) $country ? 'selected' : '' ?>><?= esc((string) $country) ?></option>
+                        <?php foreach ($ownerList as $owner): ?>
+                            <option value="<?= esc((string) $owner) ?>" <?= $selectedOwner === $owner ? 'selected' : '' ?>><?= esc((string) $owner) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -3106,16 +5511,6 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                 </div>
 
                 <div>
-                    <label for="owner">Ocupante (currentOwner)</label>
-                    <select id="owner" name="owner">
-                        <option value="">Todos</option>
-                        <?php foreach ($ownerList as $owner): ?>
-                            <option value="<?= esc((string) $owner) ?>" <?= $selectedOwner === $owner ? 'selected' : '' ?>><?= esc((string) $owner) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div>
                     <label for="salaryRange">Rango sueldo base NPC</label>
                     <select id="salaryRange" name="salaryRange">
                         <option value="">Todos</option>
@@ -3135,7 +5530,6 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                         <option value="yes" <?= $selectedOwnedCompany === 'yes' ? 'selected' : '' ?>>Solo con empresa propia</option>
                     </select>
                 </div>
-
             </form>
         </div>
 
@@ -3206,7 +5600,7 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                                         <?= renderOwnedCompaniesRegionHtml($rowOwnedCompanies, $rowSyncMeta) ?>
                                     </td>
                                     <td data-salary-base-cell>
-                                        <?= renderRegionBaseSalaryCellHtml($rowMaxSalaryInfo) ?>
+                                        <?= renderRegionSalaryCellHtml((string) ($row['id'] ?? ''), $rowSyncMeta, (string) ($row['countryId'] ?? '')) ?>
                                     </td>
                                     <td class="sync-cell">
                                         <form method="post" class="sync-region-form" data-region-id="<?= esc((string) ($row['id'] ?? '')) ?>">
@@ -3215,6 +5609,7 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                                             <input type="hidden" name="regionId" value="<?= esc((string) ($row['id'] ?? '')) ?>">
                                             <input type="hidden" name="regionName" value="<?= esc((string) ($row['name'] ?? '')) ?>">
                                             <input type="hidden" name="regionUrl" value="<?= esc((string) ($row['url'] ?? '')) ?>">
+                                            <input type="hidden" name="countryId" value="<?= esc((string) ($row['countryId'] ?? '')) ?>">
                                             <input type="hidden" name="currentOwnerSnapshot" value="<?= esc((string) ($row['currentOwner'] ?? '')) ?>">
                                             <input type="hidden" name="country" value="<?= esc($selectedCountry) ?>">
                                             <input type="hidden" name="owner" value="<?= esc($selectedOwner) ?>">
@@ -3223,7 +5618,14 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                                             <?php foreach ($selectedResourceTypes as $selectedType): ?>
                                                 <input type="hidden" name="resourceType[]" value="<?= esc((string) $selectedType) ?>">
                                             <?php endforeach; ?>
-                                            <button type="submit" class="sync-btn" data-default-label="Sincronizar region">Sincronizar region</button>
+                                            <button
+                                                type="submit"
+                                                class="sync-btn icon-only"
+                                                title="Sincronizar region"
+                                                aria-label="Sincronizar region"
+                                                data-default-label="⟳"
+                                                data-loading-label="⌛"
+                                            >⟳</button>
                                         </form>
                                         <div class="sync-inline-status" data-sync-status></div>
                                         <div class="sync-result" data-sync-result>
@@ -3258,8 +5660,184 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
 
         (function () {
             var syncForms = document.querySelectorAll('.sync-region-form');
-            if (!syncForms.length) {
+            var companySyncButtons = document.querySelectorAll('.company-card-sync-btn');
+            var companyOfferButtons = document.querySelectorAll('.company-card-job-offers-btn');
+            var companyManageButtons = document.querySelectorAll('.company-card-manage-offers-btn');
+            if (!syncForms.length && !companySyncButtons.length && !companyOfferButtons.length && !companyManageButtons.length) {
                 return;
+            }
+
+            function runRegionSyncRequest(formData, submitBtn, statusBox, resultBox, defaultLabel, loadingLabel) {
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = loadingLabel;
+                }
+                if (statusBox) {
+                    statusBox.className = 'sync-inline-status';
+                    statusBox.textContent = '';
+                }
+
+                formData.set('async', '1');
+
+                fetch('npcs.php', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                    .then(function (response) {
+                        return response.json();
+                    })
+                    .then(function (payload) {
+                        var ok = !!(payload && payload.ok);
+                        var message = payload && payload.syncMessage ? String(payload.syncMessage) : (ok ? 'Sincronizacion OK.' : 'Sincronizacion con error.');
+                        var syncedRegionId = payload && payload.syncRegionId ? String(payload.syncRegionId) : '';
+
+                        if (resultBox && payload && typeof payload.syncHtml === 'string') {
+                            resultBox.innerHTML = payload.syncHtml;
+                            var details = resultBox.querySelector('details.sync-details');
+                            if (details) {
+                                details.open = true;
+                            }
+                        }
+
+                        if (statusBox) {
+                            statusBox.className = 'sync-inline-status ' + (ok ? 'ok' : 'error');
+                            statusBox.textContent = message;
+                        }
+
+                        if (syncedRegionId !== '') {
+                            var regionRowNode = document.querySelector('tr[data-region-id="' + syncedRegionId + '"]');
+                            if (regionRowNode) {
+                                if (payload && typeof payload.ownerCellHtml === 'string' && payload.ownerCellHtml !== '') {
+                                    var occupantCell = regionRowNode.querySelector('[data-occupant-cell]');
+                                    if (occupantCell) {
+                                        occupantCell.innerHTML = payload.ownerCellHtml;
+                                    }
+                                }
+
+                                if (payload && typeof payload.salaryBaseCellHtml === 'string' && payload.salaryBaseCellHtml !== '') {
+                                    var salaryBaseCell = regionRowNode.querySelector('[data-salary-base-cell]');
+                                    if (salaryBaseCell) {
+                                        salaryBaseCell.innerHTML = payload.salaryBaseCellHtml;
+                                    }
+                                }
+
+                                var rowStatusBox = regionRowNode.querySelector('[data-sync-status]');
+                                if (rowStatusBox) {
+                                    rowStatusBox.className = 'sync-inline-status ' + (ok ? 'ok' : 'error');
+                                    rowStatusBox.textContent = message;
+                                }
+
+                                if (payload && typeof payload.syncHtml === 'string') {
+                                    var rowResultBox = regionRowNode.querySelector('[data-sync-result]');
+                                    if (rowResultBox) {
+                                        rowResultBox.innerHTML = payload.syncHtml;
+                                        var rowDetails = rowResultBox.querySelector('details.sync-details');
+                                        if (rowDetails) {
+                                            rowDetails.open = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (syncedRegionId !== '') {
+                            var companyCards = document.querySelectorAll('[data-company-region-id="' + syncedRegionId + '"]');
+                            companyCards.forEach(function (companyCard) {
+                                var coverageKey = companyCard.getAttribute('data-company-coverage-key') || '';
+                                var coverageMap = payload && payload.regionCompanyCoverage && typeof payload.regionCompanyCoverage === 'object'
+                                    ? payload.regionCompanyCoverage
+                                    : null;
+                                var visualStateMap = payload && payload.regionCompanyVisualStates && typeof payload.regionCompanyVisualStates === 'object'
+                                    ? payload.regionCompanyVisualStates
+                                    : null;
+                                var coverage = coverageMap && coverageKey !== '' && coverageMap[coverageKey]
+                                    ? coverageMap[coverageKey]
+                                    : null;
+                                var companyCoverageTotal = coverage && typeof coverage.total !== 'undefined' ? Number(coverage.total) : 0;
+                                var companyCoverageWorked = coverage && typeof coverage.worked !== 'undefined' ? Number(coverage.worked) : 0;
+                                var hasControl = companyCoverageWorked > 0;
+                                var visualState = visualStateMap && coverageKey !== '' && visualStateMap[coverageKey]
+                                    ? visualStateMap[coverageKey]
+                                    : null;
+                                var stateClass = visualState && typeof visualState.className === 'string'
+                                    ? String(visualState.className)
+                                    : '';
+                                var knownStateClasses = ['state-light-green', 'state-light-red', 'state-dark-green', 'state-dark-red', 'state-light-gray', 'salary-risk-high'];
+                                knownStateClasses.forEach(function (candidateClass) {
+                                    companyCard.classList.remove(candidateClass);
+                                });
+                                if (stateClass !== '' && knownStateClasses.indexOf(stateClass) !== -1) {
+                                    companyCard.classList.add(stateClass);
+                                    companyCard.setAttribute('data-company-state-class', stateClass);
+                                }
+                                companyCard.classList.toggle('npc-control-yes', hasControl);
+                                companyCard.classList.toggle('npc-control-no', !hasControl);
+
+                                var badge = companyCard.querySelector('[data-company-control-badge]');
+                                if (badge) {
+                                    badge.classList.toggle('ok', hasControl);
+                                    badge.textContent = hasControl ? 'Control NPC SI' : 'Control NPC NO';
+                                }
+
+                                var npcSummary = companyCard.querySelector('[data-company-npc-summary]');
+                                if (npcSummary) {
+                                    var ownedCount = payload && typeof payload.regionNpcOwnedCount !== 'undefined' ? Number(payload.regionNpcOwnedCount) : 0;
+                                    var totalCount = payload && typeof payload.regionNpcTotalCount !== 'undefined' ? Number(payload.regionNpcTotalCount) : 0;
+                                    npcSummary.textContent = 'En empresas propias: ' + ownedCount + '/' + totalCount + ' NPCs';
+                                }
+
+                                var companyCoverageSummary = companyCard.querySelector('[data-company-coverage-summary]');
+                                if (companyCoverageSummary) {
+                                    companyCoverageSummary.textContent = 'En esta empresa: ' + companyCoverageTotal + ' (Ya trabajaron: ' + companyCoverageWorked + ')';
+                                }
+
+                                var ownerFlag = companyCard.querySelector('[data-company-owner-flag]');
+                                if (ownerFlag && payload && typeof payload.ownerAtSyncFlagClass === 'string') {
+                                    var safeFlagClass = payload.ownerAtSyncFlagClass.match(/^xflagsSmall-[A-Za-z0-9-]+$/) ? payload.ownerAtSyncFlagClass : '';
+                                    var ownerName = payload && typeof payload.ownerAtSync === 'string' && payload.ownerAtSync !== '' ? payload.ownerAtSync : 'Desconocido';
+                                    if (safeFlagClass !== '') {
+                                        ownerFlag.innerHTML = '<span class="xflagsSmall ' + safeFlagClass + '"></span>';
+                                    }
+                                    ownerFlag.setAttribute('title', 'Controla: ' + ownerName);
+                                }
+
+                                var companyStatus = companyCard.querySelector('[data-company-sync-status]');
+                                if (companyStatus) {
+                                    companyStatus.className = 'sync-inline-status ' + (ok ? 'ok' : 'error');
+                                    companyStatus.textContent = message;
+                                }
+
+                                if (payload && typeof payload.companyNpcListHtml === 'string') {
+                                    var npcListBox = companyCard.querySelector('[data-company-npcs-list]');
+                                    if (npcListBox) {
+                                        npcListBox.innerHTML = payload.companyNpcListHtml;
+                                    }
+                                }
+
+                                if (payload && typeof payload.companyJobOffersHtml === 'string') {
+                                    var offersListBox = companyCard.querySelector('[data-company-job-offers-list]');
+                                    if (offersListBox) {
+                                        offersListBox.innerHTML = payload.companyJobOffersHtml;
+                                    }
+                                }
+                            });
+                        }
+                    })
+                    .catch(function () {
+                        if (statusBox) {
+                            statusBox.className = 'sync-inline-status error';
+                            statusBox.textContent = 'Error de red al sincronizar la region.';
+                        }
+                    })
+                    .finally(function () {
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = defaultLabel;
+                        }
+                    });
             }
 
             syncForms.forEach(function (syncForm) {
@@ -3274,17 +5852,56 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                         : 'Sincronizar region';
                     var loadingLabel = submitBtn ? (submitBtn.getAttribute('data-loading-label') || 'Sincronizando...') : 'Sincronizando...';
 
-                    if (submitBtn) {
-                        submitBtn.disabled = true;
-                        submitBtn.textContent = loadingLabel;
+                    runRegionSyncRequest(new FormData(syncForm), submitBtn, statusBox, resultBox, defaultLabel, loadingLabel);
+                });
+            });
+
+            companySyncButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    var companyCard = button.closest('.owned-company-card');
+                    var statusBox = companyCard ? companyCard.querySelector('[data-company-sync-status]') : null;
+                    var defaultLabel = button.getAttribute('data-default-label') || button.textContent || 'Sincronizar region';
+                    var loadingLabel = button.getAttribute('data-loading-label') || '...';
+
+                    var formData = new FormData();
+                    formData.set('action', 'sync-region-npcs');
+                    formData.set('regionId', button.getAttribute('data-region-id') || '');
+                    formData.set('regionName', button.getAttribute('data-region-name') || '');
+                    formData.set('regionUrl', button.getAttribute('data-region-url') || '');
+                    formData.set('countryId', button.getAttribute('data-country-id') || '');
+                    formData.set('currentOwnerSnapshot', button.getAttribute('data-owner-snapshot') || '');
+
+                    runRegionSyncRequest(formData, button, statusBox, null, defaultLabel, loadingLabel);
+                });
+            });
+
+            companyOfferButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    var companyCard = button.closest('.owned-company-card');
+                    var statusBox = companyCard ? companyCard.querySelector('[data-company-sync-status]') : null;
+                    var offersBox = companyCard ? companyCard.querySelector('[data-company-job-offers-list]') : null;
+                    var regionId = button.getAttribute('data-region-id') || '';
+                    var countryId = button.getAttribute('data-country-id') || '';
+                    var defaultLabel = button.getAttribute('data-default-label') || button.textContent || 'Ver ofertas';
+                    var loadingLabel = button.getAttribute('data-loading-label') || 'Consultando...';
+
+                    if (regionId === '') {
+                        return;
                     }
+
+                    button.disabled = true;
+                    button.textContent = loadingLabel;
                     if (statusBox) {
                         statusBox.className = 'sync-inline-status';
                         statusBox.textContent = '';
                     }
 
-                    var formData = new FormData(syncForm);
-                    formData.set('async', '1');
+                    var formData = new FormData();
+                    formData.set('action', 'region-job-offers-load');
+                    formData.set('regionId', regionId);
+                    if (countryId !== '') {
+                        formData.set('countryId', countryId);
+                    }
 
                     fetch('npcs.php', {
                         method: 'POST',
@@ -3298,14 +5915,25 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                         })
                         .then(function (payload) {
                             var ok = !!(payload && payload.ok);
-                            var message = payload && payload.syncMessage ? String(payload.syncMessage) : (ok ? 'Sincronizacion OK.' : 'Sincronizacion con error.');
-                            var syncedRegionId = payload && payload.syncRegionId ? String(payload.syncRegionId) : '';
+                            var message = payload && payload.message ? String(payload.message) : (ok ? '' : 'No se pudo consultar ofertas.');
 
-                            if (resultBox && payload && typeof payload.syncHtml === 'string') {
-                                resultBox.innerHTML = payload.syncHtml;
-                                var details = resultBox.querySelector('details.sync-details');
-                                if (details) {
-                                    details.open = true;
+                            if (payload && typeof payload.companyJobOffersHtml === 'string') {
+                                var companyCards = document.querySelectorAll('[data-company-region-id="' + regionId + '"]');
+                                companyCards.forEach(function (card) {
+                                    var cardOffersBox = card.querySelector('[data-company-job-offers-list]');
+                                    if (cardOffersBox) {
+                                        cardOffersBox.innerHTML = payload.companyJobOffersHtml;
+                                    }
+                                });
+                            } else if (offersBox) {
+                                offersBox.innerHTML = '<span style="color:var(--muted);">Sin ofertas detectadas en jobMarket para esta region.</span>';
+                            }
+
+                            if (payload && typeof payload.salaryBaseCellHtml === 'string') {
+                                var regionRow = document.querySelector('tr[data-region-id="' + regionId + '"]');
+                                var salaryBaseCell = regionRow ? regionRow.querySelector('[data-salary-base-cell]') : null;
+                                if (salaryBaseCell) {
+                                    salaryBaseCell.innerHTML = payload.salaryBaseCellHtml;
                                 }
                             }
 
@@ -3313,111 +5941,357 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                                 statusBox.className = 'sync-inline-status ' + (ok ? 'ok' : 'error');
                                 statusBox.textContent = message;
                             }
+                        })
+                        .catch(function () {
+                            if (statusBox) {
+                                statusBox.className = 'sync-inline-status error';
+                                statusBox.textContent = 'Error de red al consultar ofertas.';
+                            }
+                        })
+                        .finally(function () {
+                            button.disabled = false;
+                            button.textContent = defaultLabel;
+                        });
+                });
+            });
 
-                            if (syncedRegionId !== '') {
-                                var regionRowNode = document.querySelector('tr[data-region-id="' + syncedRegionId + '"]');
-                                if (regionRowNode) {
-                                    if (payload && typeof payload.ownerCellHtml === 'string' && payload.ownerCellHtml !== '') {
-                                        var occupantCell = regionRowNode.querySelector('[data-occupant-cell]');
-                                        if (occupantCell) {
-                                            occupantCell.innerHTML = payload.ownerCellHtml;
-                                        }
-                                    }
+            companyManageButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    var companyCard = button.closest('.owned-company-card');
+                    var statusBox = companyCard ? companyCard.querySelector('[data-company-sync-status]') : null;
+                    var manageBox = companyCard ? companyCard.querySelector('[data-company-offer-manage-box]') : null;
+                    var companyId = button.getAttribute('data-company-id') || '';
+                    var companyUrl = button.getAttribute('data-company-url') || '';
+                    var regionId = button.getAttribute('data-region-id') || '';
+                    var defaultLabel = button.getAttribute('data-default-label') || button.textContent || 'Gestionar ofertas';
+                    var loadingLabel = button.getAttribute('data-loading-label') || 'Cargando...';
 
-                                    if (payload && typeof payload.salaryBaseCellHtml === 'string' && payload.salaryBaseCellHtml !== '') {
-                                        var salaryBaseCell = regionRowNode.querySelector('[data-salary-base-cell]');
-                                        if (salaryBaseCell) {
-                                            salaryBaseCell.innerHTML = payload.salaryBaseCellHtml;
-                                        }
-                                    }
+                    if (companyId === '' && companyUrl === '') {
+                        return;
+                    }
 
-                                    var rowStatusBox = regionRowNode.querySelector('[data-sync-status]');
-                                    if (rowStatusBox) {
-                                        rowStatusBox.className = 'sync-inline-status ' + (ok ? 'ok' : 'error');
-                                        rowStatusBox.textContent = message;
-                                    }
+                    button.disabled = true;
+                    button.textContent = loadingLabel;
+                    if (statusBox) {
+                        statusBox.className = 'sync-inline-status';
+                        statusBox.textContent = '';
+                    }
 
-                                    if (payload && typeof payload.syncHtml === 'string') {
-                                        var rowResultBox = regionRowNode.querySelector('[data-sync-result]');
-                                        if (rowResultBox) {
-                                            rowResultBox.innerHTML = payload.syncHtml;
-                                            var rowDetails = rowResultBox.querySelector('details.sync-details');
-                                            if (rowDetails) {
-                                                rowDetails.open = true;
-                                            }
-                                        }
-                                    }
-                                }
+                    var formData = new FormData();
+                    formData.set('action', 'company-job-offers-manage-load');
+                    formData.set('companyId', companyId);
+                    formData.set('companyUrl', companyUrl);
+                    formData.set('regionId', regionId);
+
+                    fetch('npcs.php', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                        .then(function (response) {
+                            return response.json();
+                        })
+                        .then(function (payload) {
+                            var ok = !!(payload && payload.ok);
+                            var message = payload && payload.message ? String(payload.message) : (ok ? 'Gestor cargado.' : 'No se pudo cargar el gestor.');
+
+                            if (manageBox && payload && typeof payload.manageHtml === 'string') {
+                                manageBox.innerHTML = payload.manageHtml;
                             }
 
-                            if (syncedRegionId !== '') {
-                                var companyCards = document.querySelectorAll('[data-company-region-id="' + syncedRegionId + '"]');
-                                companyCards.forEach(function (companyCard) {
-                                    var hasControl = !!(payload && payload.regionNpcControl);
-                                    var maxSalaryValue = payload && typeof payload.regionMaxSalaryValue === 'number' ? payload.regionMaxSalaryValue : null;
-                                    var highSalaryRisk = maxSalaryValue !== null && maxSalaryValue > 60;
-                                    companyCard.classList.toggle('npc-control-yes', hasControl);
-                                    companyCard.classList.toggle('npc-control-no', !hasControl);
-                                    companyCard.classList.toggle('salary-risk-high', highSalaryRisk);
-
-                                    var badge = companyCard.querySelector('[data-company-control-badge]');
-                                    if (badge) {
-                                        badge.classList.toggle('ok', hasControl);
-                                        badge.textContent = hasControl ? 'Control NPC SI' : 'Control NPC NO';
-                                    }
-
-                                    var npcSummary = companyCard.querySelector('[data-company-npc-summary]');
-                                    if (npcSummary) {
-                                        var ownedCount = payload && typeof payload.regionNpcOwnedCount !== 'undefined' ? Number(payload.regionNpcOwnedCount) : 0;
-                                        var totalCount = payload && typeof payload.regionNpcTotalCount !== 'undefined' ? Number(payload.regionNpcTotalCount) : 0;
-                                        npcSummary.textContent = 'En empresas propias: ' + ownedCount + '/' + totalCount + ' NPCs';
-                                    }
-
-                                    var ownerFlag = companyCard.querySelector('[data-company-owner-flag]');
-                                    if (ownerFlag && payload && typeof payload.ownerAtSyncFlagClass === 'string') {
-                                        var safeFlagClass = payload.ownerAtSyncFlagClass.match(/^xflagsSmall-[A-Za-z0-9-]+$/) ? payload.ownerAtSyncFlagClass : '';
-                                        var ownerName = payload && typeof payload.ownerAtSync === 'string' && payload.ownerAtSync !== '' ? payload.ownerAtSync : 'Desconocido';
-                                        if (safeFlagClass !== '') {
-                                            ownerFlag.innerHTML = '<span class="xflagsSmall ' + safeFlagClass + '"></span>';
-                                        }
-                                        ownerFlag.setAttribute('title', 'Controla: ' + ownerName);
-                                    }
-
-                                    var companyStatus = companyCard.querySelector('[data-company-sync-status]');
-                                    if (companyStatus) {
-                                        companyStatus.className = 'sync-inline-status ' + (ok ? 'ok' : 'error');
-                                        companyStatus.textContent = message;
-                                    }
-
-                                    if (payload && typeof payload.companyNpcListHtml === 'string') {
-                                        var npcListBox = companyCard.querySelector('[data-company-npcs-list]');
-                                        if (npcListBox) {
-                                            npcListBox.innerHTML = payload.companyNpcListHtml;
-                                        }
-                                    }
-
-                                    if (payload && typeof payload.companyJobOffersHtml === 'string') {
-                                        var offersListBox = companyCard.querySelector('[data-company-job-offers-list]');
-                                        if (offersListBox) {
-                                            offersListBox.innerHTML = payload.companyJobOffersHtml;
-                                        }
-                                    }
-                                });
+                            if (statusBox) {
+                                statusBox.className = 'sync-inline-status ' + (ok ? 'ok' : 'error');
+                                statusBox.textContent = message;
                             }
                         })
                         .catch(function () {
                             if (statusBox) {
                                 statusBox.className = 'sync-inline-status error';
-                                statusBox.textContent = 'Error de red al sincronizar la region.';
+                                statusBox.textContent = 'Error de red al cargar el gestor de ofertas.';
                             }
                         })
                         .finally(function () {
-                            if (submitBtn) {
-                                submitBtn.disabled = false;
-                                submitBtn.textContent = defaultLabel;
-                            }
+                            button.disabled = false;
+                            button.textContent = defaultLabel;
                         });
                 });
+            });
+
+            document.addEventListener('submit', function (event) {
+                var form = event.target.closest('.company-offer-manage-form');
+                if (!form) {
+                    return;
+                }
+
+                event.preventDefault();
+
+                var companyCard = form.closest('.owned-company-card');
+                var statusBox = companyCard ? companyCard.querySelector('[data-company-sync-status]') : null;
+                var manageBox = companyCard ? companyCard.querySelector('[data-company-offer-manage-box]') : null;
+                var submitBtn = form.querySelector('button[type="submit"]');
+                var defaultLabel = submitBtn ? (submitBtn.getAttribute('data-default-label') || submitBtn.textContent || 'Guardar') : 'Guardar';
+                var loadingLabel = submitBtn ? (submitBtn.getAttribute('data-loading-label') || '⌛') : '⌛';
+
+                if (submitBtn && submitBtn.getAttribute('data-confirm') === '1') {
+                    if (!window.confirm('Confirmar eliminacion de la oferta laboral?')) {
+                        return;
+                    }
+                }
+
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = loadingLabel;
+                }
+                if (statusBox) {
+                    statusBox.className = 'sync-inline-status';
+                    statusBox.textContent = '';
+                }
+
+                var formData = new FormData(form);
+
+                fetch('npcs.php', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                    .then(function (response) {
+                        return response.json();
+                    })
+                    .then(function (payload) {
+                        var ok = !!(payload && payload.ok);
+                        var message = payload && payload.message ? String(payload.message) : (ok ? 'Operacion completada.' : 'No se pudo procesar la operacion.');
+
+                        if (manageBox && payload && typeof payload.manageHtml === 'string') {
+                            manageBox.innerHTML = payload.manageHtml;
+                        }
+
+                        if (statusBox) {
+                            statusBox.className = 'sync-inline-status ' + (ok ? 'ok' : 'error');
+                            statusBox.textContent = message;
+                        }
+                    })
+                    .catch(function () {
+                        if (statusBox) {
+                            statusBox.className = 'sync-inline-status error';
+                            statusBox.textContent = 'Error de red al enviar oferta.';
+                        }
+                    })
+                    .finally(function () {
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = defaultLabel;
+                        }
+                    });
+            });
+        })();
+
+        (function () {
+            var fullBtn = document.getElementById('bulk-scan-full-btn');
+            var pendingBtn = document.getElementById('bulk-scan-pending-btn');
+            var statusBox = document.getElementById('bulk-scan-status');
+            if (!fullBtn || !pendingBtn || !statusBox) {
+                return;
+            }
+
+            var isRunning = false;
+
+            function setButtonsDisabled(disabled) {
+                fullBtn.disabled = disabled;
+                pendingBtn.disabled = disabled;
+            }
+
+            function runSweep(mode) {
+                if (isRunning) {
+                    return;
+                }
+
+                isRunning = true;
+                setButtonsDisabled(true);
+                statusBox.className = 'sync-inline-status';
+                statusBox.textContent = 'Iniciando barrido ' + (mode === 'pending' ? 'de no trabajadas' : 'completo') + '...';
+
+                var startData = new FormData();
+                startData.set('action', 'bulk-region-job-start');
+                startData.set('mode', mode);
+
+                var regionRows = document.querySelectorAll('tr[data-region-id]');
+                regionRows.forEach(function (row) {
+                    var regionId = row.getAttribute('data-region-id') || '';
+                    if (regionId !== '') {
+                        startData.append('regionIds[]', regionId);
+                    }
+                });
+
+                fetch('npcs.php', {
+                    method: 'POST',
+                    body: startData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                    .then(function (response) {
+                        return response.json();
+                    })
+                    .then(function (startPayload) {
+                        if (!startPayload || !startPayload.ok) {
+                            throw new Error(startPayload && startPayload.message ? String(startPayload.message) : 'No se pudo iniciar el barrido.');
+                        }
+
+                        var total = typeof startPayload.total !== 'undefined' ? Number(startPayload.total) : 0;
+                        if (total <= 0) {
+                            statusBox.className = 'sync-inline-status ok';
+                            statusBox.textContent = 'No hay regiones pendientes para este barrido.';
+                            isRunning = false;
+                            setButtonsDisabled(false);
+                            return;
+                        }
+
+                        statusBox.className = 'sync-inline-status';
+                        statusBox.textContent = 'Barrido iniciado. Regiones en cola: ' + total + '. Procesando...';
+
+                        function step() {
+                            var stepData = new FormData();
+                            stepData.set('action', 'bulk-region-job-step');
+                            stepData.set('chunkSize', '8');
+
+                            fetch('npcs.php', {
+                                method: 'POST',
+                                body: stepData,
+                                headers: {
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                }
+                            })
+                                .then(function (response) {
+                                    return response.json();
+                                })
+                                .then(function (payload) {
+                                    if (!payload || !payload.ok) {
+                                        throw new Error(payload && payload.message ? String(payload.message) : 'Error al procesar el barrido.');
+                                    }
+
+                                    var processed = typeof payload.processed !== 'undefined' ? Number(payload.processed) : 0;
+                                    var totalRegions = typeof payload.total !== 'undefined' ? Number(payload.total) : 0;
+                                    var successCount = typeof payload.successCount !== 'undefined' ? Number(payload.successCount) : 0;
+                                    var failedCount = typeof payload.failedCount !== 'undefined' ? Number(payload.failedCount) : 0;
+                                    var npcCount = typeof payload.updatedNpcCount !== 'undefined' ? Number(payload.updatedNpcCount) : 0;
+
+                                    statusBox.className = 'sync-inline-status';
+                                    statusBox.textContent = 'Barrido en progreso: ' + processed + '/' + totalRegions
+                                        + ' | OK: ' + successCount
+                                        + ' | Fallos: ' + failedCount
+                                        + ' | NPCs: ' + npcCount;
+
+                                    if (payload.done) {
+                                        statusBox.className = 'sync-inline-status ok';
+                                        statusBox.textContent = 'Barrido completado. Recargando...';
+                                        window.setTimeout(function () {
+                                            window.location.reload();
+                                        }, 900);
+                                        return;
+                                    }
+
+                                    window.setTimeout(step, 120);
+                                })
+                                .catch(function (error) {
+                                    statusBox.className = 'sync-inline-status error';
+                                    statusBox.textContent = error && error.message ? error.message : 'Error al procesar el barrido.';
+                                    isRunning = false;
+                                    setButtonsDisabled(false);
+                                });
+                        }
+
+                        step();
+                    })
+                    .catch(function (error) {
+                        statusBox.className = 'sync-inline-status error';
+                        statusBox.textContent = error && error.message ? error.message : 'No se pudo iniciar el barrido.';
+                        isRunning = false;
+                        setButtonsDisabled(false);
+                    });
+            }
+
+            fullBtn.addEventListener('click', function () {
+                runSweep('full');
+            });
+
+            pendingBtn.addEventListener('click', function () {
+                runSweep('pending');
+            });
+        })();
+
+        (function () {
+            document.addEventListener('click', function (event) {
+                var button = event.target.closest('.region-job-offers-btn');
+                if (!button) {
+                    return;
+                }
+
+                var regionId = button.getAttribute('data-region-id') || '';
+                var countryId = button.getAttribute('data-country-id') || '';
+                if (regionId === '') {
+                    return;
+                }
+
+                var salaryCell = button.closest('[data-salary-base-cell]');
+                var statusBox = salaryCell ? salaryCell.querySelector('[data-job-offers-status]') : null;
+                var defaultLabel = button.getAttribute('data-default-label') || button.textContent || 'Ver ofertas';
+                var loadingLabel = button.getAttribute('data-loading-label') || 'Consultando...';
+
+                button.disabled = true;
+                button.textContent = loadingLabel;
+                if (statusBox) {
+                    statusBox.className = 'sync-inline-status';
+                    statusBox.textContent = '';
+                }
+
+                var formData = new FormData();
+                formData.set('action', 'region-job-offers-load');
+                formData.set('regionId', regionId);
+                if (countryId !== '') {
+                    formData.set('countryId', countryId);
+                }
+
+                fetch('npcs.php', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                    .then(function (response) {
+                        return response.json();
+                    })
+                    .then(function (payload) {
+                        var ok = !!(payload && payload.ok);
+                        var message = payload && payload.message ? String(payload.message) : (ok ? '' : 'No se pudo consultar ofertas.');
+
+                        if (salaryCell && payload && typeof payload.salaryBaseCellHtml === 'string' && payload.salaryBaseCellHtml !== '') {
+                            salaryCell.innerHTML = payload.salaryBaseCellHtml;
+                            statusBox = salaryCell.querySelector('[data-job-offers-status]');
+                        }
+
+                        if (statusBox) {
+                            statusBox.className = 'sync-inline-status ' + (ok ? 'ok' : 'error');
+                            statusBox.textContent = message;
+                        }
+                    })
+                    .catch(function () {
+                        if (statusBox) {
+                            statusBox.className = 'sync-inline-status error';
+                            statusBox.textContent = 'Error de red al consultar ofertas.';
+                        }
+                    })
+                    .finally(function () {
+                        var activeButton = salaryCell ? salaryCell.querySelector('.region-job-offers-btn') : null;
+                        if (activeButton) {
+                            activeButton.disabled = false;
+                            activeButton.textContent = defaultLabel;
+                        }
+                    });
             });
         })();
     </script>
