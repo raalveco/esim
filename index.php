@@ -288,6 +288,8 @@ $dailiesLoadRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'dailies-load';
 $dailiesClaimRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'dailies-claim';
+$changeEmailRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+	&& (string) ($_POST['action'] ?? '') === 'change-email';
 $productMarketRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'product-market-load';
 $productMarketOffersRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
@@ -531,6 +533,16 @@ $dailiesClaimResult = [
 	'url' => '',
 	'claimUrl' => '',
 	'dailyId' => '',
+	'responseSnippet' => '',
+	'error' => '',
+];
+$changeEmailResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => 'https://vara.e-sim.org/editCitizen.html',
+	'email' => '',
 	'responseSnippet' => '',
 	'error' => '',
 ];
@@ -1404,6 +1416,59 @@ if ($fatalError === '' && $dailiesClaimRequested) {
 		'claimableCount' => $dailiesRefreshClaimableCount,
 		'error' => (string) ($dailiesRefreshStep['error'] ?? ''),
 	];
+}
+
+if ($fatalError === '' && $changeEmailRequested) {
+	$newEmail = trim((string) ($_POST['change_email'] ?? ''));
+	$changeEmailUrl = 'https://vara.e-sim.org/editCitizen.html';
+
+	$changeEmailResult = [
+		'attempted' => true,
+		'saved' => false,
+		'reason' => 'change-email-invalid',
+		'httpStatus' => 0,
+		'url' => $changeEmailUrl,
+		'email' => $newEmail,
+		'responseSnippet' => '',
+		'error' => '',
+	];
+
+	if (filter_var($newEmail, FILTER_VALIDATE_EMAIL) !== false) {
+		$changeEmailStep = curlRequest($ch, $changeEmailUrl, [
+			CURLOPT_POST => true,
+			CURLOPT_HTTPGET => false,
+			CURLOPT_POSTFIELDS => http_build_query([
+				'action' => 'CHANGE_EMAIL',
+				'mail' => $newEmail,
+			]),
+			CURLOPT_HTTPHEADER => array_merge($headers, [
+				'Content-Type: application/x-www-form-urlencoded',
+				'Origin: https://vara.e-sim.org',
+				'Referer: ' . (string) ($step3['effectiveUrl'] ?: 'https://vara.e-sim.org/index.html'),
+			]),
+		]);
+
+		$changeBody = (string) ($changeEmailStep['body'] ?? '');
+		$changeBodyLower = strtolower($changeBody);
+		$changeHttpOk = $changeEmailStep['errno'] === 0
+			&& (int) ($changeEmailStep['statusCode'] ?? 0) >= 200
+			&& (int) ($changeEmailStep['statusCode'] ?? 0) < 400;
+		$changeLooksSuccess = preg_match('/(changed|change e-mail|email changed|success|updated)/i', $changeBody) === 1;
+		$changeLooksError = preg_match('/(error|invalid|already|forbidden|failed|captcha|not logged)/i', $changeBody) === 1;
+
+		$changeEmailResult = [
+			'attempted' => true,
+			'saved' => $changeHttpOk && ($changeLooksSuccess || (!$changeLooksError && trim($changeBodyLower) !== '')),
+			'reason' => !$changeHttpOk
+				? ((int) ($changeEmailStep['errno'] ?? 0) !== 0 ? 'change-email-request-error' : 'change-email-http-error')
+				: ($changeLooksSuccess ? 'change-email-submitted' : ($changeLooksError ? 'change-email-rejected' : 'change-email-processed')),
+			'httpStatus' => (int) ($changeEmailStep['statusCode'] ?? 0),
+			'url' => (string) ($changeEmailStep['effectiveUrl'] ?: $changeEmailUrl),
+			'email' => $newEmail,
+			'responseSnippet' => trim(substr(compactNodeText($changeBody), 0, 260)),
+			'error' => (string) ($changeEmailStep['error'] ?? ''),
+		];
+	}
 }
 
 if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? ''))) {
@@ -2632,6 +2697,14 @@ $_SESSION['curl_last_login'] = [
 		'url' => (string) ($dailiesClaimResult['url'] ?? ''),
 		'claimUrl' => (string) ($dailiesClaimResult['claimUrl'] ?? ''),
 		'dailyId' => (string) ($dailiesClaimResult['dailyId'] ?? ''),
+	],
+	'change_email_result' => [
+		'attempted' => (bool) ($changeEmailResult['attempted'] ?? false),
+		'saved' => (bool) ($changeEmailResult['saved'] ?? false),
+		'reason' => (string) ($changeEmailResult['reason'] ?? ''),
+		'httpStatus' => (int) ($changeEmailResult['httpStatus'] ?? 0),
+		'url' => (string) ($changeEmailResult['url'] ?? ''),
+		'email' => (string) ($changeEmailResult['email'] ?? ''),
 	],
 	'storage_money_result' => [
 		'attempted' => (bool) ($storageMoneyResult['attempted'] ?? false),
@@ -8381,6 +8454,30 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 	</div>
 
 	<div class="section-panel">
+		<h2 class="section-title">Cuenta</h2>
+		<p class="section-meta" style="margin:0;">Cambiar correo de la cuenta (accion CHANGE_EMAIL en editCitizen.html).</p>
+		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+			<input type="hidden" name="action" value="change-email">
+			<label for="change_email_input"><strong>Nuevo Email:</strong></label>
+			<input id="change_email_input" type="email" name="change_email" value="<?= htmlspecialchars((string) ($_POST['change_email'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="correo@dominio.com" required style="min-width:280px;padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
+			<button type="submit" class="train-button">Cambiar e-mail</button>
+		</form>
+
+		<?php if (!empty($changeEmailResult['attempted'])): ?>
+			<p class="<?= !empty($changeEmailResult['saved']) ? 'ok' : 'warn' ?>" style="margin:8px 0 0;">
+				Cambio email: <?= htmlspecialchars((string) ($changeEmailResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= !empty($changeEmailResult['email']) ? ' | Email ' . htmlspecialchars((string) $changeEmailResult['email'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($changeEmailResult['url']) ? ' | URL ' . htmlspecialchars((string) $changeEmailResult['url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= isset($changeEmailResult['httpStatus']) ? ' | HTTP ' . (int) $changeEmailResult['httpStatus'] : '' ?>
+				<?= !empty($changeEmailResult['error']) ? ' | Error cURL: ' . htmlspecialchars((string) $changeEmailResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+			<?php if (!empty($changeEmailResult['responseSnippet'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $changeEmailResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+		<?php endif; ?>
+	</div>
+
+	<div class="section-panel">
 		<h2 class="section-title">Monedas (Storage MONEY)</h2>
 		<p class="section-meta" style="margin:0;">
 			Fuente: <?= htmlspecialchars((string) ($storageMoneyResult['url'] ?? $storageMoneyUrl), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
@@ -8656,6 +8753,8 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			<p class="<?= !empty($dailiesClaimResult['saved']) ? 'ok' : 'warn' ?>" style="margin:8px 0 0;">
 				Resultado reclamar: <?= htmlspecialchars((string) ($dailiesClaimResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
 				<?= isset($dailiesClaimResult['dailyId']) && (string) $dailiesClaimResult['dailyId'] !== '' ? ' | Daily ID ' . htmlspecialchars((string) $dailiesClaimResult['dailyId'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($dailiesClaimResult['claimUrl']) ? ' | GET ' . htmlspecialchars((string) ($dailiesClaimResult['claimUrl'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($dailiesClaimResult['url']) ? ' | Ejecutada ' . htmlspecialchars((string) ($dailiesClaimResult['url'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
 				<?= isset($dailiesClaimResult['httpStatus']) ? ' | HTTP ' . (int) $dailiesClaimResult['httpStatus'] : '' ?>
 				<?= !empty($dailiesClaimResult['error']) ? ' | Error cURL: ' . htmlspecialchars((string) $dailiesClaimResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
 			</p>
