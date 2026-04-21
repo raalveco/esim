@@ -1572,14 +1572,11 @@ if ($fatalError === '' && $confirmMailCodeRequested) {
 		$previewCitizenId = preg_replace('/\D+/', '', trim((string) ($previewInfoForConfirm['citizenId'] ?? '')));
 		$postedCitizenId = $previewCitizenId !== '' ? $previewCitizenId : $fallbackCitizenId;
 	}
-	if ($postedCitizenId === '') {
-		$postedCitizenId = '194888';
-	}
 
 	$confirmMailCodeResult = [
 		'attempted' => true,
 		'saved' => false,
-		'reason' => 'confirm-mail-invalid-stamp',
+		'reason' => $postedCitizenId === '' ? 'confirm-mail-citizen-id-missing' : 'confirm-mail-invalid-stamp',
 		'httpStatus' => 0,
 		'url' => '',
 		'citizenId' => $postedCitizenId,
@@ -1588,7 +1585,7 @@ if ($fatalError === '' && $confirmMailCodeRequested) {
 		'error' => '',
 	];
 
-	if ($postedStamp !== '') {
+	if ($postedStamp !== '' && $postedCitizenId !== '') {
 		$confirmMailUrl = 'https://vara.e-sim.org/confirmMail.html?' . http_build_query([
 			'citizenId' => $postedCitizenId,
 			'stamp' => $postedStamp,
@@ -8964,14 +8961,31 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			<button type="submit" class="train-button">Inspeccionar partido</button>
 		</form>
 
-		<?php $confirmCodeInputValue = trim((string) ($_POST['confirm_mail_code'] ?? '')); ?>
+		<?php
+		$confirmCodeInputValue = trim((string) ($_POST['confirm_mail_code'] ?? ''));
+		$confirmCitizenIdInputValue = preg_replace('/\D+/', '', trim((string) ($_POST['confirm_citizen_id'] ?? '')));
+		if ($confirmCitizenIdInputValue === '') {
+			$confirmCitizenIdInputValue = preg_replace('/\D+/', '', trim((string) $headerCitizenId));
+		}
+		if ($confirmCitizenIdInputValue === '') {
+			$confirmCitizenIdInputValue = preg_replace('/\D+/', '', trim((string) $userId));
+		}
+		$hasDynamicConfirmCitizenId = $confirmCitizenIdInputValue !== '';
+		$confirmCitizenIdPreview = $hasDynamicConfirmCitizenId ? $confirmCitizenIdInputValue : 'TU_CITIZEN_ID';
+		?>
 		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
 			<input type="hidden" name="action" value="confirm-mail-code">
-			<input type="hidden" name="confirm_citizen_id" value="<?= htmlspecialchars((string) (($headerCitizenId !== '' ? $headerCitizenId : '194888')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+			<?php if ($hasDynamicConfirmCitizenId): ?>
+				<input type="hidden" name="confirm_citizen_id" value="<?= htmlspecialchars($confirmCitizenIdInputValue, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+				<span class="section-meta">Citizen ID detectado: <?= htmlspecialchars($confirmCitizenIdInputValue, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+			<?php else: ?>
+				<label for="confirm_citizen_id_input"><strong>Citizen ID:</strong></label>
+				<input id="confirm_citizen_id_input" type="text" name="confirm_citizen_id" value="" placeholder="Ingresa tu citizen id" required pattern="[0-9]+" inputmode="numeric" style="min-width:160px;padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
+			<?php endif; ?>
 			<label for="confirm_mail_code_input"><strong>Codigo confirmacion:</strong></label>
 			<input id="confirm_mail_code_input" type="text" name="confirm_mail_code" value="<?= htmlspecialchars($confirmCodeInputValue, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="Pegue aqui el stamp" required style="min-width:280px;padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
 			<button type="submit" class="train-button">Confirmar correo</button>
-			<span class="section-meta">GET: https://vara.e-sim.org/confirmMail.html?citizenId=<?= htmlspecialchars((string) (($headerCitizenId !== '' ? $headerCitizenId : '194888')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>&stamp=CODE</span>
+			<span class="section-meta">GET: https://vara.e-sim.org/confirmMail.html?citizenId=<?= htmlspecialchars($confirmCitizenIdPreview, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>&stamp=CODE</span>
 		</form>
 
 		<?php if (!empty($changeEmailResult['attempted'])): ?>

@@ -1,12 +1,12 @@
 {
-    "syncedAt": "2026-04-21T14:19:40+00:00",
-    "syncedAtDisplay": "2026-04-21 14:19:40",
+    "syncedAt": "2026-04-21T15:08:38+00:00",
+    "syncedAtDisplay": "2026-04-21 15:08:38",
     "sourceUrl": "https://vara.e-sim.org/business.html?businessType=COMPANIES",
     "walletBalances": [
         {
             "flagClass": "xflagsSmall-Gold",
-            "amountValue": 1346.77,
-            "amountDisplay": "1346.77",
+            "amountValue": 1173.08,
+            "amountDisplay": "1173.08",
             "currencyCode": "Gold"
         },
         {
@@ -23,8 +23,8 @@
         },
         {
             "flagClass": "xflagsSmall-Venezuela",
-            "amountValue": 1307.5,
-            "amountDisplay": "1307.50",
+            "amountValue": 943,
+            "amountDisplay": "943.00",
             "currencyCode": "VEF"
         },
         {
@@ -35,8 +35,8 @@
         },
         {
             "flagClass": "xflagsSmall-China",
-            "amountValue": 764.64,
-            "amountDisplay": "764.64",
+            "amountValue": 767.14,
+            "amountDisplay": "767.14",
             "currencyCode": "CNY"
         },
         {
@@ -76,10 +76,22 @@
             "currencyCode": "KRW"
         },
         {
+            "flagClass": "xflagsSmall-Serbia",
+            "amountValue": 372.75,
+            "amountDisplay": "372.75",
+            "currencyCode": "RSD"
+        },
+        {
             "flagClass": "xflagsSmall-Norway",
             "amountValue": 311.27,
             "amountDisplay": "311.27",
             "currencyCode": "NOK"
+        },
+        {
+            "flagClass": "xflagsSmall-Russia",
+            "amountValue": 281,
+            "amountDisplay": "281.00",
+            "currencyCode": "RUB"
         },
         {
             "flagClass": "xflagsSmall-Saudi-Arabia",
@@ -100,22 +112,16 @@
             "currencyCode": "LAK"
         },
         {
-            "flagClass": "xflagsSmall-Russia",
-            "amountValue": 131,
-            "amountDisplay": "131.00",
-            "currencyCode": "RUB"
-        },
-        {
-            "flagClass": "xflagsSmall-Serbia",
-            "amountValue": 127.75,
-            "amountDisplay": "127.75",
-            "currencyCode": "RSD"
-        },
-        {
             "flagClass": "xflagsSmall-Libya",
             "amountValue": 98.5,
             "amountDisplay": "98.50",
             "currencyCode": "LYD"
+        },
+        {
+            "flagClass": "xflagsSmall-Philippines",
+            "amountValue": 46,
+            "amountDisplay": "46.00",
+            "currencyCode": "PHP"
         },
         {
             "flagClass": "xflagsSmall-Kazakhstan",
@@ -282,18 +288,6 @@
             "businessType": ""
         },
         {
-            "companyId": "1709",
-            "companyName": "GLND III",
-            "companyUrl": "https://vara.e-sim.org/company.html?id=1709",
-            "regionId": "134",
-            "regionName": "NorthOfBrazil",
-            "regionUrl": "https://vara.e-sim.org/region.html?id=134",
-            "countryName": "Venezuela",
-            "productTitle": "Minerals",
-            "productImageUrl": "https://vara.e-sim.org/cdn/static/img/productIcons/Rewards/minerals.png",
-            "businessType": ""
-        },
-        {
             "companyId": "1626",
             "companyName": "GLNR VI",
             "companyUrl": "https://vara.e-sim.org/company.html?id=1626",
@@ -303,6 +297,18 @@
             "countryName": "Yemen",
             "productTitle": "Rifle",
             "productImageUrl": "https://vara.e-sim.org/cdn/static/img/productIcons/Rewards/rifle.png",
+            "businessType": ""
+        },
+        {
+            "companyId": "1709",
+            "companyName": "GLND III",
+            "companyUrl": "https://vara.e-sim.org/company.html?id=1709",
+            "regionId": "134",
+            "regionName": "NorthOfBrazil",
+            "regionUrl": "https://vara.e-sim.org/region.html?id=134",
+            "countryName": "Venezuela",
+            "productTitle": "Minerals",
+            "productImageUrl": "https://vara.e-sim.org/cdn/static/img/productIcons/Rewards/minerals.png",
             "businessType": ""
         },
         {
@@ -337,6 +343,66 @@
             "regionName": "Shkoder",
             "regionUrl": "https://vara.e-sim.org/region.html?id=326",
             "countryName": "Bosnia and Herzegovina",
+            "productTitle": "Iron",
+            "productImageUrl": "https://vara.e-sim.org/cdn/static/img/productIcons/Rewards/iron.png",
+            "businessType": ""
+        },
+        {
+            "companyId": "1711",
+            "companyName": "GLNH XXI",
+            "companyUrl": "https://vara.e-sim.org/company.html?id=1711",
+            "regionId": "276",
+            "regionName": "Andino",
+            "regionUrl": "https://vara.e-sim.org/region.html?id=276",
+            "countryName": "USA",
+            "productTitle": "Iron",
+            "productImageUrl": "https://vara.e-sim.org/cdn/static/img/productIcons/Rewards/iron.png",
+            "businessType": ""
+        },
+        {
+            "companyId": "1712",
+            "companyName": "GLNH XXII",
+            "companyUrl": "https://vara.e-sim.org/company.html?id=1712",
+            "regionId": "2264",
+            "regionName": "Larisa",
+            "regionUrl": "https://vara.e-sim.org/region.html?id=2264",
+            "countryName": "USA",
+            "productTitle": "Iron",
+            "productImageUrl": "https://vara.e-sim.org/cdn/static/img/productIcons/Rewards/iron.png",
+            "businessType": ""
+        },
+        {
+            "companyId": "1713",
+            "companyName": "GLNH XXIII",
+            "companyUrl": "https://vara.e-sim.org/company.html?id=1713",
+            "regionId": "53",
+            "regionName": "Transylvania",
+            "regionUrl": "https://vara.e-sim.org/region.html?id=53",
+            "countryName": "Serbia",
+            "productTitle": "Iron",
+            "productImageUrl": "https://vara.e-sim.org/cdn/static/img/productIcons/Rewards/iron.png",
+            "businessType": ""
+        },
+        {
+            "companyId": "1714",
+            "companyName": "GLNH XXIV",
+            "companyUrl": "https://vara.e-sim.org/company.html?id=1714",
+            "regionId": "886",
+            "regionName": "Bekaa",
+            "regionUrl": "https://vara.e-sim.org/region.html?id=886",
+            "countryName": "USA",
+            "productTitle": "Iron",
+            "productImageUrl": "https://vara.e-sim.org/cdn/static/img/productIcons/Rewards/iron.png",
+            "businessType": ""
+        },
+        {
+            "companyId": "1715",
+            "companyName": "GLNH XXV",
+            "companyUrl": "https://vara.e-sim.org/company.html?id=1715",
+            "regionId": "3158",
+            "regionName": "Urumqi",
+            "regionUrl": "https://vara.e-sim.org/region.html?id=3158",
+            "countryName": "China",
             "productTitle": "Iron",
             "productImageUrl": "https://vara.e-sim.org/cdn/static/img/productIcons/Rewards/iron.png",
             "businessType": ""
