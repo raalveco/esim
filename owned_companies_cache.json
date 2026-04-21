@@ -1,12 +1,12 @@
 {
-    "syncedAt": "2026-04-21T01:22:19+00:00",
-    "syncedAtDisplay": "2026-04-21 01:22:19",
+    "syncedAt": "2026-04-21T01:41:12+00:00",
+    "syncedAtDisplay": "2026-04-21 01:41:12",
     "sourceUrl": "https://vara.e-sim.org/business.html?businessType=COMPANIES",
     "walletBalances": [
         {
             "flagClass": "xflagsSmall-Gold",
-            "amountValue": 203.29,
-            "amountDisplay": "203.29",
+            "amountValue": 3.52,
+            "amountDisplay": "3.52",
             "currencyCode": "Gold"
         },
         {
@@ -23,8 +23,8 @@
         },
         {
             "flagClass": "xflagsSmall-Venezuela",
-            "amountValue": 1035.5,
-            "amountDisplay": "1035.50",
+            "amountValue": 995,
+            "amountDisplay": "995.00",
             "currencyCode": "VEF"
         },
         {
@@ -231,6 +231,18 @@
             "countryName": "Venezuela",
             "productTitle": "Rifle",
             "productImageUrl": "https://vara.e-sim.org/cdn/static/img/productIcons/Rewards/rifle.png",
+            "businessType": ""
+        },
+        {
+            "companyId": "1665",
+            "companyName": "GLNO I",
+            "companyUrl": "https://vara.e-sim.org/company.html?id=1665",
+            "regionId": "837",
+            "regionName": "Cuyuni",
+            "regionUrl": "https://vara.e-sim.org/region.html?id=837",
+            "countryName": "Venezuela",
+            "productTitle": "Oil",
+            "productImageUrl": "https://vara.e-sim.org/cdn/static/img/productIcons/Rewards/oil.png",
             "businessType": ""
         },
         {
@@ -483,18 +495,6 @@
             "countryName": "USA",
             "productTitle": "Iron",
             "productImageUrl": "https://vara.e-sim.org/cdn/static/img/productIcons/Rewards/iron.png",
-            "businessType": ""
-        },
-        {
-            "companyId": "1665",
-            "companyName": "GLNO I",
-            "companyUrl": "https://vara.e-sim.org/company.html?id=1665",
-            "regionId": "837",
-            "regionName": "Cuyuni",
-            "regionUrl": "https://vara.e-sim.org/region.html?id=837",
-            "countryName": "Venezuela",
-            "productTitle": "Oil",
-            "productImageUrl": "https://vara.e-sim.org/cdn/static/img/productIcons/Rewards/oil.png",
             "businessType": ""
         },
         {

@@ -4454,7 +4454,7 @@ function normalizeSidebarLabel(string $value): string
 	return trim((string) $normalized);
 }
 
-function findSidebarLabeledValue(DOMXPath $xpath, string|array $labels): string
+function findSidebarLabeledValue(DOMXPath $xpath, $labels): string
 {
 	$labelList = is_array($labels) ? $labels : [$labels];
 	$expectedSet = [];
