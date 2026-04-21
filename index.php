@@ -290,6 +290,8 @@ $dailiesClaimRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'dailies-claim';
 $changeEmailRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'change-email';
+$resendConfirmationMailRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+	&& (string) ($_POST['action'] ?? '') === 'resend-confirmation-mail';
 $productMarketRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'product-market-load';
 $productMarketOffersRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
@@ -543,6 +545,15 @@ $changeEmailResult = [
 	'httpStatus' => 0,
 	'url' => 'https://vara.e-sim.org/editCitizen.html',
 	'email' => '',
+	'responseSnippet' => '',
+	'error' => '',
+];
+$resendConfirmationMailResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => 'https://vara.e-sim.org//resendConfirmationMail.html',
 	'responseSnippet' => '',
 	'error' => '',
 ];
@@ -1469,6 +1480,35 @@ if ($fatalError === '' && $changeEmailRequested) {
 			'error' => (string) ($changeEmailStep['error'] ?? ''),
 		];
 	}
+}
+
+if ($fatalError === '' && $resendConfirmationMailRequested) {
+	$resendConfirmationMailUrl = 'https://vara.e-sim.org//resendConfirmationMail.html';
+	$resendStep = curlRequest($ch, $resendConfirmationMailUrl, [
+		CURLOPT_POST => false,
+		CURLOPT_HTTPGET => true,
+		CURLOPT_HTTPHEADER => $headers,
+	]);
+
+	$resendBody = (string) ($resendStep['body'] ?? '');
+	$resendBodyLower = strtolower($resendBody);
+	$resendHttpOk = $resendStep['errno'] === 0
+		&& (int) ($resendStep['statusCode'] ?? 0) >= 200
+		&& (int) ($resendStep['statusCode'] ?? 0) < 400;
+	$resendLooksError = preg_match('/(error|invalid|forbidden|failed|captcha|not logged|denied)/i', $resendBody) === 1;
+	$resendLooksSuccess = preg_match('/(mail|email).*(sent|resent|success)|confirmation.*(sent|resent)/i', $resendBody) === 1;
+
+	$resendConfirmationMailResult = [
+		'attempted' => true,
+		'saved' => $resendHttpOk && ($resendLooksSuccess || (!$resendLooksError && trim($resendBodyLower) !== '')),
+		'reason' => !$resendHttpOk
+			? ((int) ($resendStep['errno'] ?? 0) !== 0 ? 'resend-confirmation-request-error' : 'resend-confirmation-http-error')
+			: ($resendLooksSuccess ? 'resend-confirmation-sent' : ($resendLooksError ? 'resend-confirmation-rejected' : 'resend-confirmation-processed')),
+		'httpStatus' => (int) ($resendStep['statusCode'] ?? 0),
+		'url' => (string) ($resendStep['effectiveUrl'] ?: $resendConfirmationMailUrl),
+		'responseSnippet' => trim(substr(compactNodeText($resendBody), 0, 260)),
+		'error' => (string) ($resendStep['error'] ?? ''),
+	];
 }
 
 if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? ''))) {
@@ -2705,6 +2745,13 @@ $_SESSION['curl_last_login'] = [
 		'httpStatus' => (int) ($changeEmailResult['httpStatus'] ?? 0),
 		'url' => (string) ($changeEmailResult['url'] ?? ''),
 		'email' => (string) ($changeEmailResult['email'] ?? ''),
+	],
+	'resend_confirmation_mail_result' => [
+		'attempted' => (bool) ($resendConfirmationMailResult['attempted'] ?? false),
+		'saved' => (bool) ($resendConfirmationMailResult['saved'] ?? false),
+		'reason' => (string) ($resendConfirmationMailResult['reason'] ?? ''),
+		'httpStatus' => (int) ($resendConfirmationMailResult['httpStatus'] ?? 0),
+		'url' => (string) ($resendConfirmationMailResult['url'] ?? ''),
 	],
 	'storage_money_result' => [
 		'attempted' => (bool) ($storageMoneyResult['attempted'] ?? false),
@@ -8455,12 +8502,18 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 
 	<div class="section-panel">
 		<h2 class="section-title">Cuenta</h2>
-		<p class="section-meta" style="margin:0;">Cambiar correo de la cuenta (accion CHANGE_EMAIL en editCitizen.html).</p>
+		<p class="section-meta" style="margin:0;">Cambiar correo y reenviar correo de confirmacion de la cuenta.</p>
 		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
 			<input type="hidden" name="action" value="change-email">
 			<label for="change_email_input"><strong>Nuevo Email:</strong></label>
 			<input id="change_email_input" type="email" name="change_email" value="<?= htmlspecialchars((string) ($_POST['change_email'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="correo@dominio.com" required style="min-width:280px;padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
 			<button type="submit" class="train-button">Cambiar e-mail</button>
+		</form>
+
+		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+			<input type="hidden" name="action" value="resend-confirmation-mail">
+			<button type="submit" class="train-button">Solicitar correo de confirmacion</button>
+			<span class="section-meta">GET: https://vara.e-sim.org//resendConfirmationMail.html</span>
 		</form>
 
 		<?php if (!empty($changeEmailResult['attempted'])): ?>
@@ -8473,6 +8526,18 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			</p>
 			<?php if (!empty($changeEmailResult['responseSnippet'])): ?>
 				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $changeEmailResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+		<?php endif; ?>
+
+		<?php if (!empty($resendConfirmationMailResult['attempted'])): ?>
+			<p class="<?= !empty($resendConfirmationMailResult['saved']) ? 'ok' : 'warn' ?>" style="margin:8px 0 0;">
+				Reenvio confirmacion: <?= htmlspecialchars((string) ($resendConfirmationMailResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= !empty($resendConfirmationMailResult['url']) ? ' | URL ' . htmlspecialchars((string) $resendConfirmationMailResult['url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= isset($resendConfirmationMailResult['httpStatus']) ? ' | HTTP ' . (int) $resendConfirmationMailResult['httpStatus'] : '' ?>
+				<?= !empty($resendConfirmationMailResult['error']) ? ' | Error cURL: ' . htmlspecialchars((string) $resendConfirmationMailResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+			<?php if (!empty($resendConfirmationMailResult['responseSnippet'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $resendConfirmationMailResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
 			<?php endif; ?>
 		<?php endif; ?>
 	</div>

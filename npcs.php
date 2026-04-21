@@ -174,6 +174,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] 
     $redirectOwner = trim((string) ($_POST['owner'] ?? ''));
     $redirectSalaryRange = trim((string) ($_POST['salaryRange'] ?? ''));
     $redirectOwnedCompany = trim((string) ($_POST['ownedCompany'] ?? ''));
+    $redirectWorkedState = trim((string) ($_POST['workedState'] ?? ''));
     $redirectResourceType = $_POST['resourceType'] ?? [];
     $redirectResourceTypes = [];
 
@@ -188,6 +189,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] 
     }
     if ($redirectOwnedCompany !== '') {
         $redirectParams['ownedCompany'] = $redirectOwnedCompany;
+    }
+    if (in_array($redirectWorkedState, ['worked', 'not_worked'], true)) {
+        $redirectParams['workedState'] = $redirectWorkedState;
     }
     if (is_array($redirectResourceType)) {
         foreach ($redirectResourceType as $candidateType) {
@@ -221,6 +225,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] 
     $redirectOwner = trim((string) ($_POST['owner'] ?? ''));
     $redirectSalaryRange = trim((string) ($_POST['salaryRange'] ?? ''));
     $redirectOwnedCompany = trim((string) ($_POST['ownedCompany'] ?? ''));
+    $redirectWorkedState = trim((string) ($_POST['workedState'] ?? ''));
     $redirectResourceType = $_POST['resourceType'] ?? [];
     $redirectResourceTypes = [];
 
@@ -235,6 +240,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] 
     }
     if ($redirectOwnedCompany !== '') {
         $redirectParams['ownedCompany'] = $redirectOwnedCompany;
+    }
+    if (in_array($redirectWorkedState, ['worked', 'not_worked'], true)) {
+        $redirectParams['workedState'] = $redirectWorkedState;
     }
     if (is_array($redirectResourceType)) {
         foreach ($redirectResourceType as $candidateType) {
@@ -655,6 +663,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] 
     $redirectOwner = trim((string) ($_POST['owner'] ?? ''));
     $redirectSalaryRange = trim((string) ($_POST['salaryRange'] ?? ''));
     $redirectOwnedCompany = trim((string) ($_POST['ownedCompany'] ?? ''));
+    $redirectWorkedState = trim((string) ($_POST['workedState'] ?? ''));
     $redirectResourceType = $_POST['resourceType'] ?? [];
     $redirectResourceTypes = [];
 
@@ -669,6 +678,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] 
     }
     if ($redirectOwnedCompany !== '') {
         $redirectParams['ownedCompany'] = $redirectOwnedCompany;
+    }
+    if (in_array($redirectWorkedState, ['worked', 'not_worked'], true)) {
+        $redirectParams['workedState'] = $redirectWorkedState;
     }
     if (is_array($redirectResourceType)) {
         foreach ($redirectResourceType as $candidateType) {
@@ -1160,6 +1172,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] 
     $redirectCountry = trim((string) ($_POST['country'] ?? ''));
     $redirectOwner = trim((string) ($_POST['owner'] ?? ''));
     $redirectSalaryRange = trim((string) ($_POST['salaryRange'] ?? ''));
+    $redirectWorkedState = trim((string) ($_POST['workedState'] ?? ''));
     $redirectResourceType = $_POST['resourceType'] ?? [];
     $redirectResourceTypes = [];
 
@@ -1171,6 +1184,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['action'] 
     }
     if ($redirectSalaryRange !== '') {
         $redirectParams['salaryRange'] = $redirectSalaryRange;
+    }
+    if (in_array($redirectWorkedState, ['worked', 'not_worked'], true)) {
+        $redirectParams['workedState'] = $redirectWorkedState;
     }
     if (is_array($redirectResourceType)) {
         foreach ($redirectResourceType as $candidateType) {
@@ -1491,6 +1507,10 @@ $selectedResourceTypes = array_keys($selectedResourceTypes);
 $selectedOwner = trim((string) ($_GET['owner'] ?? ''));
 $selectedSalaryRange = trim((string) ($_GET['salaryRange'] ?? ''));
 $selectedOwnedCompany = trim((string) ($_GET['ownedCompany'] ?? ''));
+$selectedWorkedState = trim((string) ($_GET['workedState'] ?? ''));
+if (!in_array($selectedWorkedState, ['worked', 'not_worked'], true)) {
+    $selectedWorkedState = '';
+}
 
 $syncStatus = trim((string) ($_GET['syncStatus'] ?? ''));
 $syncRegionId = trim((string) ($_GET['syncRegionId'] ?? ''));
@@ -1511,7 +1531,7 @@ $bulkRegionSyncTarget = (int) ($_GET['bulkRegionSyncTarget'] ?? 0);
 $bulkRegionSyncNpcCount = (int) ($_GET['bulkRegionSyncNpcCount'] ?? 0);
 $bulkRegionSyncMessage = trim((string) ($_GET['bulkRegionSyncMessage'] ?? ''));
 
-$filteredRows = array_values(array_filter($rows, static function (array $row) use ($selectedCountry, $selectedResourceTypes, $selectedOwner, $selectedSalaryRange, $selectedOwnedCompany, $npcCache, $ownedCompaniesByRegion): bool {
+$filteredRows = array_values(array_filter($rows, static function (array $row) use ($selectedCountry, $selectedResourceTypes, $selectedOwner, $selectedSalaryRange, $selectedOwnedCompany, $selectedWorkedState, $npcCache, $ownedCompaniesByRegion): bool {
     if ($selectedCountry !== '' && (string) ($row['countryName'] ?? '') !== $selectedCountry) {
         return false;
     }
@@ -1545,6 +1565,32 @@ $filteredRows = array_values(array_filter($rows, static function (array $row) us
         $regionId = (string) ($row['id'] ?? '');
         $regionCompanies = is_array($ownedCompaniesByRegion[$regionId] ?? null) ? (array) $ownedCompaniesByRegion[$regionId] : [];
         if ($regionCompanies === []) {
+            return false;
+        }
+    }
+
+    if ($selectedWorkedState !== '') {
+        $regionId = (string) ($row['id'] ?? '');
+        $syncMeta = is_array($npcCache['regions'][$regionId] ?? null) ? $npcCache['regions'][$regionId] : null;
+        $syncedNpcs = is_array($syncMeta['npcs'] ?? null) ? (array) $syncMeta['npcs'] : [];
+        $hasWorkedNpc = false;
+
+        foreach ($syncedNpcs as $npcRow) {
+            if (!is_array($npcRow)) {
+                continue;
+            }
+
+            if (($npcRow['workedToday'] ?? null) === true) {
+                $hasWorkedNpc = true;
+                break;
+            }
+        }
+
+        if ($selectedWorkedState === 'worked' && !$hasWorkedNpc) {
+            return false;
+        }
+
+        if ($selectedWorkedState === 'not_worked' && $hasWorkedNpc) {
             return false;
         }
     }
@@ -5269,6 +5315,7 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                 <input type="hidden" name="owner" value="<?= esc($selectedOwner) ?>">
                 <input type="hidden" name="salaryRange" value="<?= esc($selectedSalaryRange) ?>">
                 <input type="hidden" name="ownedCompany" value="<?= esc($selectedOwnedCompany) ?>">
+                <input type="hidden" name="workedState" value="<?= esc($selectedWorkedState) ?>">
                 <?php foreach ($selectedResourceTypes as $selectedType): ?>
                     <input type="hidden" name="resourceType[]" value="<?= esc((string) $selectedType) ?>">
                 <?php endforeach; ?>
@@ -5434,6 +5481,7 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                 <input type="hidden" name="owner" value="<?= esc($selectedOwner) ?>">
                 <input type="hidden" name="salaryRange" value="<?= esc($selectedSalaryRange) ?>">
                 <input type="hidden" name="ownedCompany" value="<?= esc($selectedOwnedCompany) ?>">
+                <input type="hidden" name="workedState" value="<?= esc($selectedWorkedState) ?>">
                 <?php foreach ($selectedResourceTypes as $selectedType): ?>
                     <input type="hidden" name="resourceType[]" value="<?= esc((string) $selectedType) ?>">
                 <?php endforeach; ?>
@@ -5530,6 +5578,15 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                         <option value="yes" <?= $selectedOwnedCompany === 'yes' ? 'selected' : '' ?>>Solo con empresa propia</option>
                     </select>
                 </div>
+
+                <div>
+                    <label for="workedState">Trabajo NPC hoy</label>
+                    <select id="workedState" name="workedState">
+                        <option value="" <?= $selectedWorkedState === '' ? 'selected' : '' ?>>Todas</option>
+                        <option value="worked" <?= $selectedWorkedState === 'worked' ? 'selected' : '' ?>>Ya trabajaron</option>
+                        <option value="not_worked" <?= $selectedWorkedState === 'not_worked' ? 'selected' : '' ?>>No trabajaron / sin consulta</option>
+                    </select>
+                </div>
             </form>
         </div>
 
@@ -5615,6 +5672,7 @@ function isSalaryInRange(?float $salaryValue, string $range): bool
                                             <input type="hidden" name="owner" value="<?= esc($selectedOwner) ?>">
                                             <input type="hidden" name="salaryRange" value="<?= esc($selectedSalaryRange) ?>">
                                             <input type="hidden" name="ownedCompany" value="<?= esc($selectedOwnedCompany) ?>">
+                                            <input type="hidden" name="workedState" value="<?= esc($selectedWorkedState) ?>">
                                             <?php foreach ($selectedResourceTypes as $selectedType): ?>
                                                 <input type="hidden" name="resourceType[]" value="<?= esc((string) $selectedType) ?>">
                                             <?php endforeach; ?>

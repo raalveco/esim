@@ -1631,8 +1631,8 @@
             "regionUrl": "https://vara.e-sim.org/region.html?id=5576",
             "countryId": "35",
             "npcUrl": "https://vara.e-sim.org/npcStatistics.html?regionId=5576",
-            "syncedAt": "2026-04-21T14:21:43+00:00",
-            "syncedAtDisplay": "2026-04-21 14:21:43",
+            "syncedAt": "2026-04-21T14:41:41+00:00",
+            "syncedAtDisplay": "2026-04-21 14:41:41",
             "npcCount": 3,
             "npcs": [
                 {
@@ -1686,11 +1686,129 @@
             "maxNpcSalaryCurrency": "AUD",
             "maxNpcSalaryFlagClass": "xflagsSmall-Australia",
             "jobMarketUrl": "https://vara.e-sim.org/jobMarket.html?regionId=5576&minimalSkill=0",
-            "jobOfferCount": 0,
-            "jobOffers": [],
-            "maxJobOfferValue": null,
-            "maxJobOfferCurrency": "",
-            "maxJobOfferFlagClass": "",
+            "jobOfferCount": 13,
+            "jobOffers": [
+                {
+                    "companyName": "Aust rifle4",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1169",
+                    "salary": "70.00 AUD",
+                    "salaryCurrency": "AUD",
+                    "salaryFlagClass": "xflagsSmall-Australia",
+                    "salaryValue": 70,
+                    "rowText": "Salary:\n                 70.00 AUD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                6\n            \n            \n                Company:\n                   Aust rifle4   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Kangoo   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 25.00 AUD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   Aust rifle4   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Kangoo   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 20.00 AUD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                4\n            \n            \n                Company:\n                   Aust rifle4   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Kangoo   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 1.00 RON\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                },
+                {
+                    "companyName": "Aust rifle4",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1169",
+                    "salary": "70.00 AUD",
+                    "salaryCurrency": "AUD",
+                    "salaryFlagClass": "xflagsSmall-Australia",
+                    "salaryValue": 70,
+                    "rowText": "Salary:\n                 70.00 AUD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                6\n            \n            \n                Company:\n                   Aust rifle4   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Kangoo   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                },
+                {
+                    "companyName": "",
+                    "companyUrl": "",
+                    "salary": "70.00 AUD",
+                    "salaryCurrency": "AUD",
+                    "salaryFlagClass": "xflagsSmall-Australia",
+                    "salaryValue": 70,
+                    "rowText": "Salary:\n                 70.00 AUD"
+                },
+                {
+                    "companyName": "Aust rifle4",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1169",
+                    "salary": "",
+                    "salaryCurrency": "",
+                    "salaryFlagClass": "",
+                    "salaryValue": null,
+                    "rowText": "Min. Economic Skill:\n                6\n            \n            \n                Company:\n                   Aust rifle4   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Kangoo"
+                },
+                {
+                    "companyName": "Aust rifle4",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1169",
+                    "salary": "25.00 AUD",
+                    "salaryCurrency": "AUD",
+                    "salaryFlagClass": "xflagsSmall-Australia",
+                    "salaryValue": 25,
+                    "rowText": "Salary:\n                 25.00 AUD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   Aust rifle4   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Kangoo   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                },
+                {
+                    "companyName": "",
+                    "companyUrl": "",
+                    "salary": "25.00 AUD",
+                    "salaryCurrency": "AUD",
+                    "salaryFlagClass": "xflagsSmall-Australia",
+                    "salaryValue": 25,
+                    "rowText": "Salary:\n                 25.00 AUD"
+                },
+                {
+                    "companyName": "Aust rifle4",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1169",
+                    "salary": "",
+                    "salaryCurrency": "",
+                    "salaryFlagClass": "",
+                    "salaryValue": null,
+                    "rowText": "Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   Aust rifle4   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Kangoo"
+                },
+                {
+                    "companyName": "Aust rifle4",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1169",
+                    "salary": "20.00 AUD",
+                    "salaryCurrency": "AUD",
+                    "salaryFlagClass": "xflagsSmall-Australia",
+                    "salaryValue": 20,
+                    "rowText": "Salary:\n                 20.00 AUD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                4\n            \n            \n                Company:\n                   Aust rifle4   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Kangoo   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                },
+                {
+                    "companyName": "",
+                    "companyUrl": "",
+                    "salary": "20.00 AUD",
+                    "salaryCurrency": "AUD",
+                    "salaryFlagClass": "xflagsSmall-Australia",
+                    "salaryValue": 20,
+                    "rowText": "Salary:\n                 20.00 AUD"
+                },
+                {
+                    "companyName": "Aust rifle4",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1169",
+                    "salary": "",
+                    "salaryCurrency": "",
+                    "salaryFlagClass": "",
+                    "salaryValue": null,
+                    "rowText": "Min. Economic Skill:\n                4\n            \n            \n                Company:\n                   Aust rifle4   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Kangoo"
+                },
+                {
+                    "companyName": "International bank of Railman",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1",
+                    "salary": "1.00 RON",
+                    "salaryCurrency": "RON",
+                    "salaryFlagClass": "xflagsSmall-Romania",
+                    "salaryValue": 1,
+                    "rowText": "Salary:\n                 1.00 RON\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                },
+                {
+                    "companyName": "",
+                    "companyUrl": "",
+                    "salary": "1.00 RON",
+                    "salaryCurrency": "RON",
+                    "salaryFlagClass": "xflagsSmall-Romania",
+                    "salaryValue": 1,
+                    "rowText": "Salary:\n                 1.00 RON"
+                },
+                {
+                    "companyName": "International bank of Railman",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1",
+                    "salary": "",
+                    "salaryCurrency": "",
+                    "salaryFlagClass": "",
+                    "salaryValue": null,
+                    "rowText": "Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank"
+                }
+            ],
+            "maxJobOfferValue": 70,
+            "maxJobOfferCurrency": "AUD",
+            "maxJobOfferFlagClass": "xflagsSmall-Australia",
             "catalogOwner": "Australia",
             "ownerAtSync": "Australia",
             "ownerAtSyncFlagClass": "xflagsSmall-Australia",
@@ -2629,9 +2747,10 @@
             "regionId": "3158",
             "regionName": "Ürümqi",
             "regionUrl": "https://vara.e-sim.org/region.html?id=3158",
+            "countryId": "28",
             "npcUrl": "https://vara.e-sim.org/npcStatistics.html?regionId=3158",
-            "syncedAt": "2026-04-17T07:06:18+00:00",
-            "syncedAtDisplay": "2026-04-17 07:06:18",
+            "syncedAt": "2026-04-21T14:44:53+00:00",
+            "syncedAtDisplay": "2026-04-21 14:44:53",
             "npcCount": 3,
             "npcs": [
                 {
@@ -2641,8 +2760,13 @@
                     "salary": "50.00 CNY",
                     "salaryFlagClass": "xflagsSmall-China",
                     "salaryCurrency": "CNY",
-                    "workedToday": false,
-                    "workedDayLabel": "Day 50"
+                    "workedToday": true,
+                    "workedDayLabel": "Day 54",
+                    "companyOwnerProfileId": "",
+                    "companyOwnerMuId": "2",
+                    "companyOwnedByUser": false,
+                    "companyOwnedByMu": false,
+                    "companyOwnedByUserOrMu": false
                 },
                 {
                     "npc": "David Picard",
@@ -2651,8 +2775,13 @@
                     "salary": "50.00 CNY",
                     "salaryFlagClass": "xflagsSmall-China",
                     "salaryCurrency": "CNY",
-                    "workedToday": false,
-                    "workedDayLabel": "Day 50"
+                    "workedToday": true,
+                    "workedDayLabel": "Day 54",
+                    "companyOwnerProfileId": "",
+                    "companyOwnerMuId": "2",
+                    "companyOwnedByUser": false,
+                    "companyOwnedByMu": false,
+                    "companyOwnedByUserOrMu": false
                 },
                 {
                     "npc": "Maren Ingjalddottir",
@@ -2661,18 +2790,95 @@
                     "salary": "50.00 CNY",
                     "salaryFlagClass": "xflagsSmall-China",
                     "salaryCurrency": "CNY",
-                    "workedToday": false,
-                    "workedDayLabel": "Day 50"
+                    "workedToday": true,
+                    "workedDayLabel": "Day 54",
+                    "companyOwnerProfileId": "",
+                    "companyOwnerMuId": "2",
+                    "companyOwnedByUser": false,
+                    "companyOwnedByMu": false,
+                    "companyOwnedByUserOrMu": false
                 }
             ],
             "maxNpcSalaryValue": 50,
             "maxNpcSalaryDisplay": "50.00",
             "maxNpcSalaryCurrency": "CNY",
             "maxNpcSalaryFlagClass": "xflagsSmall-China",
+            "jobMarketUrl": "https://vara.e-sim.org/jobMarket.html?regionId=3158&minimalSkill=0",
+            "jobOfferCount": 7,
+            "jobOffers": [
+                {
+                    "companyName": "GLNH XXV",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1715",
+                    "salary": "61.50 CNY",
+                    "salaryCurrency": "CNY",
+                    "salaryFlagClass": "xflagsSmall-China",
+                    "salaryValue": 61.5,
+                    "rowText": "Salary:\n                 61.50 CNY\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                6\n            \n            \n                Company:\n                   GLNH XXV   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 1.00 CNY\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n        \n              1  2"
+                },
+                {
+                    "companyName": "GLNH XXV",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1715",
+                    "salary": "61.50 CNY",
+                    "salaryCurrency": "CNY",
+                    "salaryFlagClass": "xflagsSmall-China",
+                    "salaryValue": 61.5,
+                    "rowText": "Salary:\n                 61.50 CNY\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                6\n            \n            \n                Company:\n                   GLNH XXV   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                },
+                {
+                    "companyName": "",
+                    "companyUrl": "",
+                    "salary": "61.50 CNY",
+                    "salaryCurrency": "CNY",
+                    "salaryFlagClass": "xflagsSmall-China",
+                    "salaryValue": 61.5,
+                    "rowText": "Salary:\n                 61.50 CNY"
+                },
+                {
+                    "companyName": "GLNH XXV",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1715",
+                    "salary": "",
+                    "salaryCurrency": "",
+                    "salaryFlagClass": "",
+                    "salaryValue": null,
+                    "rowText": "Min. Economic Skill:\n                6\n            \n            \n                Company:\n                   GLNH XXV   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno"
+                },
+                {
+                    "companyName": "International bank of Railman",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1",
+                    "salary": "1.00 CNY",
+                    "salaryCurrency": "CNY",
+                    "salaryFlagClass": "xflagsSmall-China",
+                    "salaryValue": 1,
+                    "rowText": "Salary:\n                 1.00 CNY\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                },
+                {
+                    "companyName": "",
+                    "companyUrl": "",
+                    "salary": "1.00 CNY",
+                    "salaryCurrency": "CNY",
+                    "salaryFlagClass": "xflagsSmall-China",
+                    "salaryValue": 1,
+                    "rowText": "Salary:\n                 1.00 CNY"
+                },
+                {
+                    "companyName": "International bank of Railman",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1",
+                    "salary": "",
+                    "salaryCurrency": "",
+                    "salaryFlagClass": "",
+                    "salaryValue": null,
+                    "rowText": "Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank"
+                }
+            ],
+            "maxJobOfferValue": 61.5,
+            "maxJobOfferCurrency": "CNY",
+            "maxJobOfferFlagClass": "xflagsSmall-China",
             "catalogOwner": "Porcelana",
             "ownerAtSync": "China",
             "ownerAtSyncFlagClass": "xflagsSmall-China",
-            "ownerChanged": true
+            "ownerChanged": true,
+            "jobOffersSyncedAt": "2026-04-21T14:44:56+00:00",
+            "jobOffersSyncedAtDisplay": "2026-04-21 14:44:56"
         },
         "5608": {
             "regionId": "5608",
@@ -16751,8 +16957,8 @@
             "regionUrl": "https://vara.e-sim.org/region.html?id=5577",
             "countryId": "35",
             "npcUrl": "https://vara.e-sim.org/npcStatistics.html?regionId=5577",
-            "syncedAt": "2026-04-21T06:42:13+00:00",
-            "syncedAtDisplay": "2026-04-21 06:42:13",
+            "syncedAt": "2026-04-21T14:45:11+00:00",
+            "syncedAtDisplay": "2026-04-21 14:45:11",
             "npcCount": 3,
             "npcs": [
                 {
@@ -16815,7 +17021,7 @@
                     "salaryCurrency": "AUD",
                     "salaryFlagClass": "xflagsSmall-Australia",
                     "salaryValue": 13.5,
-                    "rowText": "Salary:\n                 13.50 AUD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                8\n            \n            \n                Company:\n                   GLNT I   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 1.00 MYR\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n        \n              1  2"
+                    "rowText": "Salary:\n                 13.50 AUD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                8\n            \n            \n                Company:\n                   GLNT I   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 1.00 CNY\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n        \n              1  2"
                 },
                 {
                     "companyName": "GLNT I",
@@ -16847,20 +17053,20 @@
                 {
                     "companyName": "International bank of Railman",
                     "companyUrl": "https://vara.e-sim.org/company.html?id=1",
-                    "salary": "1.00 MYR",
-                    "salaryCurrency": "MYR",
-                    "salaryFlagClass": "xflagsSmall-Malaysia",
+                    "salary": "1.00 CNY",
+                    "salaryCurrency": "CNY",
+                    "salaryFlagClass": "xflagsSmall-China",
                     "salaryValue": 1,
-                    "rowText": "Salary:\n                 1.00 MYR\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                    "rowText": "Salary:\n                 1.00 CNY\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
                 },
                 {
                     "companyName": "",
                     "companyUrl": "",
-                    "salary": "1.00 MYR",
-                    "salaryCurrency": "MYR",
-                    "salaryFlagClass": "xflagsSmall-Malaysia",
+                    "salary": "1.00 CNY",
+                    "salaryCurrency": "CNY",
+                    "salaryFlagClass": "xflagsSmall-China",
                     "salaryValue": 1,
-                    "rowText": "Salary:\n                 1.00 MYR"
+                    "rowText": "Salary:\n                 1.00 CNY"
                 },
                 {
                     "companyName": "International bank of Railman",
@@ -16878,9 +17084,7 @@
             "catalogOwner": "Australia",
             "ownerAtSync": "Australia",
             "ownerAtSyncFlagClass": "xflagsSmall-Australia",
-            "ownerChanged": false,
-            "jobOffersSyncedAt": "2026-04-21T06:44:01+00:00",
-            "jobOffersSyncedAtDisplay": "2026-04-21 06:44:01"
+            "ownerChanged": false
         },
         "833": {
             "regionId": "833",
@@ -21634,8 +21838,8 @@
             "regionUrl": "https://vara.e-sim.org/region.html?id=721",
             "countryId": "121",
             "npcUrl": "https://vara.e-sim.org/npcStatistics.html?regionId=721",
-            "syncedAt": "2026-04-21T14:22:23+00:00",
-            "syncedAtDisplay": "2026-04-21 14:22:23",
+            "syncedAt": "2026-04-21T14:45:22+00:00",
+            "syncedAtDisplay": "2026-04-21 14:45:22",
             "npcCount": 3,
             "npcs": [
                 {
@@ -21689,11 +21893,102 @@
             "maxNpcSalaryCurrency": "BOB",
             "maxNpcSalaryFlagClass": "xflagsSmall-Bolivia",
             "jobMarketUrl": "https://vara.e-sim.org/jobMarket.html?regionId=721&minimalSkill=0",
-            "jobOfferCount": 0,
-            "jobOffers": [],
-            "maxJobOfferValue": null,
-            "maxJobOfferCurrency": "",
-            "maxJobOfferFlagClass": "",
+            "jobOfferCount": 10,
+            "jobOffers": [
+                {
+                    "companyName": "GLNH XII",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1633",
+                    "salary": "151.00 USD",
+                    "salaryCurrency": "USD",
+                    "salaryFlagClass": "xflagsSmall-USA",
+                    "salaryValue": 151,
+                    "rowText": "Salary:\n                 151.00 USD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNH XII   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 150.00 USD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                6\n            \n            \n                Company:\n                   Chuquisaca NPC   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Meow Meow Army   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 1.00 CNY\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n        \n              1  2"
+                },
+                {
+                    "companyName": "GLNH XII",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1633",
+                    "salary": "151.00 USD",
+                    "salaryCurrency": "USD",
+                    "salaryFlagClass": "xflagsSmall-USA",
+                    "salaryValue": 151,
+                    "rowText": "Salary:\n                 151.00 USD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNH XII   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                },
+                {
+                    "companyName": "",
+                    "companyUrl": "",
+                    "salary": "151.00 USD",
+                    "salaryCurrency": "USD",
+                    "salaryFlagClass": "xflagsSmall-USA",
+                    "salaryValue": 151,
+                    "rowText": "Salary:\n                 151.00 USD"
+                },
+                {
+                    "companyName": "GLNH XII",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1633",
+                    "salary": "",
+                    "salaryCurrency": "",
+                    "salaryFlagClass": "",
+                    "salaryValue": null,
+                    "rowText": "Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNH XII   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno"
+                },
+                {
+                    "companyName": "Chuquisaca NPC",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=953",
+                    "salary": "150.00 USD",
+                    "salaryCurrency": "USD",
+                    "salaryFlagClass": "xflagsSmall-USA",
+                    "salaryValue": 150,
+                    "rowText": "Salary:\n                 150.00 USD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                6\n            \n            \n                Company:\n                   Chuquisaca NPC   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Meow Meow Army   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                },
+                {
+                    "companyName": "",
+                    "companyUrl": "",
+                    "salary": "150.00 USD",
+                    "salaryCurrency": "USD",
+                    "salaryFlagClass": "xflagsSmall-USA",
+                    "salaryValue": 150,
+                    "rowText": "Salary:\n                 150.00 USD"
+                },
+                {
+                    "companyName": "Chuquisaca NPC",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=953",
+                    "salary": "",
+                    "salaryCurrency": "",
+                    "salaryFlagClass": "",
+                    "salaryValue": null,
+                    "rowText": "Min. Economic Skill:\n                6\n            \n            \n                Company:\n                   Chuquisaca NPC   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Meow Meow Army"
+                },
+                {
+                    "companyName": "International bank of Railman",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1",
+                    "salary": "1.00 CNY",
+                    "salaryCurrency": "CNY",
+                    "salaryFlagClass": "xflagsSmall-China",
+                    "salaryValue": 1,
+                    "rowText": "Salary:\n                 1.00 CNY\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                },
+                {
+                    "companyName": "",
+                    "companyUrl": "",
+                    "salary": "1.00 CNY",
+                    "salaryCurrency": "CNY",
+                    "salaryFlagClass": "xflagsSmall-China",
+                    "salaryValue": 1,
+                    "rowText": "Salary:\n                 1.00 CNY"
+                },
+                {
+                    "companyName": "International bank of Railman",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1",
+                    "salary": "",
+                    "salaryCurrency": "",
+                    "salaryFlagClass": "",
+                    "salaryValue": null,
+                    "rowText": "Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank"
+                }
+            ],
+            "maxJobOfferValue": 151,
+            "maxJobOfferCurrency": "USD",
+            "maxJobOfferFlagClass": "xflagsSmall-USA",
             "catalogOwner": "EE.UU",
             "ownerAtSync": "USA",
             "ownerAtSyncFlagClass": "xflagsSmall-USA",
@@ -24615,10 +24910,10 @@
             "regionId": "886",
             "regionName": "Becá",
             "regionUrl": "https://vara.e-sim.org/region.html?id=886",
-            "countryId": "26",
+            "countryId": "148",
             "npcUrl": "https://vara.e-sim.org/npcStatistics.html?regionId=886",
-            "syncedAt": "2026-04-21T14:28:12+00:00",
-            "syncedAtDisplay": "2026-04-21 14:28:12",
+            "syncedAt": "2026-04-21T14:44:48+00:00",
+            "syncedAtDisplay": "2026-04-21 14:44:48",
             "npcCount": 3,
             "npcs": [
                 {
@@ -24672,15 +24967,81 @@
             "maxNpcSalaryCurrency": "EGP",
             "maxNpcSalaryFlagClass": "xflagsSmall-Egypt",
             "jobMarketUrl": "https://vara.e-sim.org/jobMarket.html?regionId=886&minimalSkill=0",
-            "jobOfferCount": 0,
-            "jobOffers": [],
-            "maxJobOfferValue": null,
-            "maxJobOfferCurrency": "",
-            "maxJobOfferFlagClass": "",
+            "jobOfferCount": 7,
+            "jobOffers": [
+                {
+                    "companyName": "GLNH XXIV",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1714",
+                    "salary": "55.50 USD",
+                    "salaryCurrency": "USD",
+                    "salaryFlagClass": "xflagsSmall-USA",
+                    "salaryValue": 55.5,
+                    "rowText": "Salary:\n                 55.50 USD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                6\n            \n            \n                Company:\n                   GLNH XXIV   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 1.00 CNY\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n        \n              1  2"
+                },
+                {
+                    "companyName": "GLNH XXIV",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1714",
+                    "salary": "55.50 USD",
+                    "salaryCurrency": "USD",
+                    "salaryFlagClass": "xflagsSmall-USA",
+                    "salaryValue": 55.5,
+                    "rowText": "Salary:\n                 55.50 USD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                6\n            \n            \n                Company:\n                   GLNH XXIV   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                },
+                {
+                    "companyName": "",
+                    "companyUrl": "",
+                    "salary": "55.50 USD",
+                    "salaryCurrency": "USD",
+                    "salaryFlagClass": "xflagsSmall-USA",
+                    "salaryValue": 55.5,
+                    "rowText": "Salary:\n                 55.50 USD"
+                },
+                {
+                    "companyName": "GLNH XXIV",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1714",
+                    "salary": "",
+                    "salaryCurrency": "",
+                    "salaryFlagClass": "",
+                    "salaryValue": null,
+                    "rowText": "Min. Economic Skill:\n                6\n            \n            \n                Company:\n                   GLNH XXIV   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno"
+                },
+                {
+                    "companyName": "International bank of Railman",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1",
+                    "salary": "1.00 CNY",
+                    "salaryCurrency": "CNY",
+                    "salaryFlagClass": "xflagsSmall-China",
+                    "salaryValue": 1,
+                    "rowText": "Salary:\n                 1.00 CNY\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                },
+                {
+                    "companyName": "",
+                    "companyUrl": "",
+                    "salary": "1.00 CNY",
+                    "salaryCurrency": "CNY",
+                    "salaryFlagClass": "xflagsSmall-China",
+                    "salaryValue": 1,
+                    "rowText": "Salary:\n                 1.00 CNY"
+                },
+                {
+                    "companyName": "International bank of Railman",
+                    "companyUrl": "https://vara.e-sim.org/company.html?id=1",
+                    "salary": "",
+                    "salaryCurrency": "",
+                    "salaryFlagClass": "",
+                    "salaryValue": null,
+                    "rowText": "Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank"
+                }
+            ],
+            "maxJobOfferValue": 55.5,
+            "maxJobOfferCurrency": "USD",
+            "maxJobOfferFlagClass": "xflagsSmall-USA",
             "catalogOwner": "EE.UU",
             "ownerAtSync": "USA",
             "ownerAtSyncFlagClass": "xflagsSmall-USA",
-            "ownerChanged": true
+            "ownerChanged": true,
+            "jobOffersSyncedAt": "2026-04-21T14:44:55+00:00",
+            "jobOffersSyncedAtDisplay": "2026-04-21 14:44:55"
         },
         "2632": {
             "regionId": "2632",
