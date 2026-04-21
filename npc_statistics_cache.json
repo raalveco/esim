@@ -4561,7 +4561,7 @@
                     "salaryCurrency": "YER",
                     "salaryFlagClass": "xflagsSmall-Yemen",
                     "salaryValue": 26,
-                    "rowText": "Salary:\n                 26.00 YER\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNT II   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n        \n            \n                \n                \n                    \n                \n            \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 25.00 YER\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   LSI Yemen Tank   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Lusitanian Strategic Initiative   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n        \n            \n                \n                \n                    \n                \n            \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 20.00 YER\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                4\n            \n            \n                Company:\n                   LSI Yemen Tank   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Lusitanian Strategic Initiative   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n        \n            \n                \n                \n                    \n                \n            \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 15.00 YER\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                3\n            \n            \n                Company:\n                   LSI Yemen Tank   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Lusitanian Strategic Initiative   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n        \n            \n                \n                \n                    \n                \n            \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 10.00 YER\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                2\n            \n            \n                Company:\n                   LSI Yemen Tank   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Lusitanian Strategic Initiative   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n        \n            \n                \n                \n                    \n                \n            \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 5.00 YER\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   LSI Yemen Tank   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Lusitanian Strategic Initiative   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 1.00 BDT\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n        \n              \nwindow.addEventListener('load', () => {\ndocument.getElementById('pagingButton').addEventListener('click', () => {\nwindow.location = 'jobMarket.html?countryId=26&minimalSkill=8&regionId=362&page='+$('#pagingInput').val();\n});\n});\n\n1  2  3"
+                    "rowText": "Salary:\n                 26.00 YER\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNT II   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n        \n            \n                \n                \n                    \n                \n            \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 25.00 YER\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   LSI Yemen Tank   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Lusitanian Strategic Initiative   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n        \n            \n                \n                \n                    \n                \n            \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 20.00 YER\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                4\n            \n            \n                Company:\n                   LSI Yemen Tank   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Lusitanian Strategic Initiative   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n        \n            \n                \n                \n                    \n                \n            \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 15.00 YER\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                3\n            \n            \n                Company:\n                   LSI Yemen Tank   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Lusitanian Strategic Initiative   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n        \n            \n                \n                \n                    \n                \n            \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 10.00 YER\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                2\n            \n            \n                Company:\n                   LSI Yemen Tank   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Lusitanian Strategic Initiative   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n        \n            \n                \n                \n                    \n                \n            \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 5.00 YER\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   LSI Yemen Tank   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Lusitanian Strategic Initiative   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 1.00 NPR\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
                 },
                 {
                     "companyName": "GLNT II",
@@ -4728,20 +4728,20 @@
                 {
                     "companyName": "International bank of Railman",
                     "companyUrl": "https://vara.e-sim.org/company.html?id=1",
-                    "salary": "1.00 BDT",
-                    "salaryCurrency": "BDT",
-                    "salaryFlagClass": "xflagsSmall-Bangladesh",
+                    "salary": "1.00 NPR",
+                    "salaryCurrency": "NPR",
+                    "salaryFlagClass": "xflagsSmall-Nepal",
                     "salaryValue": 1,
-                    "rowText": "Salary:\n                 1.00 BDT\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                    "rowText": "Salary:\n                 1.00 NPR\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
                 },
                 {
                     "companyName": "",
                     "companyUrl": "",
-                    "salary": "1.00 BDT",
-                    "salaryCurrency": "BDT",
-                    "salaryFlagClass": "xflagsSmall-Bangladesh",
+                    "salary": "1.00 NPR",
+                    "salaryCurrency": "NPR",
+                    "salaryFlagClass": "xflagsSmall-Nepal",
                     "salaryValue": 1,
-                    "rowText": "Salary:\n                 1.00 BDT"
+                    "rowText": "Salary:\n                 1.00 NPR"
                 },
                 {
                     "companyName": "International bank of Railman",
@@ -4759,7 +4759,9 @@
             "catalogOwner": "",
             "ownerAtSync": "Yemen",
             "ownerAtSyncFlagClass": "xflagsSmall-Yemen",
-            "ownerChanged": false
+            "ownerChanged": false,
+            "jobOffersSyncedAt": "2026-04-21T00:59:40+00:00",
+            "jobOffersSyncedAtDisplay": "2026-04-21 00:59:40"
         },
         "363": {
             "regionId": "363",
@@ -24717,29 +24719,29 @@
                 {
                     "companyName": "GLNH XIII",
                     "companyUrl": "https://vara.e-sim.org/company.html?id=1631",
-                    "salary": "31.50 USD",
+                    "salary": "151.00 USD",
                     "salaryCurrency": "USD",
                     "salaryFlagClass": "xflagsSmall-USA",
-                    "salaryValue": 31.5,
-                    "rowText": "Salary:\n                 31.50 USD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNH XIII   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 1.00 BDT\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n        \n              \nwindow.addEventListener('load', () => {\ndocument.getElementById('pagingButton').addEventListener('click', () => {\nwindow.location = 'jobMarket.html?countryId=26&minimalSkill=8&regionId=5587&page='+$('#pagingInput').val();\n});\n});\n\n1  2  3"
+                    "salaryValue": 151,
+                    "rowText": "Salary:\n                 151.00 USD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNH XIII   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 1.00 NPR\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
                 },
                 {
                     "companyName": "GLNH XIII",
                     "companyUrl": "https://vara.e-sim.org/company.html?id=1631",
-                    "salary": "31.50 USD",
+                    "salary": "151.00 USD",
                     "salaryCurrency": "USD",
                     "salaryFlagClass": "xflagsSmall-USA",
-                    "salaryValue": 31.5,
-                    "rowText": "Salary:\n                 31.50 USD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNH XIII   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                    "salaryValue": 151,
+                    "rowText": "Salary:\n                 151.00 USD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNH XIII   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
                 },
                 {
                     "companyName": "",
                     "companyUrl": "",
-                    "salary": "31.50 USD",
+                    "salary": "151.00 USD",
                     "salaryCurrency": "USD",
                     "salaryFlagClass": "xflagsSmall-USA",
-                    "salaryValue": 31.5,
-                    "rowText": "Salary:\n                 31.50 USD"
+                    "salaryValue": 151,
+                    "rowText": "Salary:\n                 151.00 USD"
                 },
                 {
                     "companyName": "GLNH XIII",
@@ -24753,20 +24755,20 @@
                 {
                     "companyName": "International bank of Railman",
                     "companyUrl": "https://vara.e-sim.org/company.html?id=1",
-                    "salary": "1.00 BDT",
-                    "salaryCurrency": "BDT",
-                    "salaryFlagClass": "xflagsSmall-Bangladesh",
+                    "salary": "1.00 NPR",
+                    "salaryCurrency": "NPR",
+                    "salaryFlagClass": "xflagsSmall-Nepal",
                     "salaryValue": 1,
-                    "rowText": "Salary:\n                 1.00 BDT\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                    "rowText": "Salary:\n                 1.00 NPR\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
                 },
                 {
                     "companyName": "",
                     "companyUrl": "",
-                    "salary": "1.00 BDT",
-                    "salaryCurrency": "BDT",
-                    "salaryFlagClass": "xflagsSmall-Bangladesh",
+                    "salary": "1.00 NPR",
+                    "salaryCurrency": "NPR",
+                    "salaryFlagClass": "xflagsSmall-Nepal",
                     "salaryValue": 1,
-                    "rowText": "Salary:\n                 1.00 BDT"
+                    "rowText": "Salary:\n                 1.00 NPR"
                 },
                 {
                     "companyName": "International bank of Railman",
@@ -24778,13 +24780,15 @@
                     "rowText": "Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank"
                 }
             ],
-            "maxJobOfferValue": 31.5,
+            "maxJobOfferValue": 151,
             "maxJobOfferCurrency": "USD",
             "maxJobOfferFlagClass": "xflagsSmall-USA",
             "catalogOwner": "",
             "ownerAtSync": "USA",
             "ownerAtSyncFlagClass": "xflagsSmall-USA",
-            "ownerChanged": false
+            "ownerChanged": false,
+            "jobOffersSyncedAt": "2026-04-21T01:13:42+00:00",
+            "jobOffersSyncedAtDisplay": "2026-04-21 01:13:42"
         },
         "732": {
             "regionId": "732",
@@ -25362,29 +25366,29 @@
                 {
                     "companyName": "GLNH II",
                     "companyUrl": "https://vara.e-sim.org/company.html?id=1651",
-                    "salary": "25.00 USD",
+                    "salary": "151.00 USD",
                     "salaryCurrency": "USD",
                     "salaryFlagClass": "xflagsSmall-USA",
-                    "salaryValue": 25,
-                    "rowText": "Salary:\n                 25.00 USD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNH II   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 1.00 BDT\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n        \n              \nwindow.addEventListener('load', () => {\ndocument.getElementById('pagingButton').addEventListener('click', () => {\nwindow.location = 'jobMarket.html?countryId=26&minimalSkill=8&regionId=5726&page='+$('#pagingInput').val();\n});\n});\n\n1  2  3"
+                    "salaryValue": 151,
+                    "rowText": "Salary:\n                 151.00 USD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNH II   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 1.00 NPR\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
                 },
                 {
                     "companyName": "GLNH II",
                     "companyUrl": "https://vara.e-sim.org/company.html?id=1651",
-                    "salary": "25.00 USD",
+                    "salary": "151.00 USD",
                     "salaryCurrency": "USD",
                     "salaryFlagClass": "xflagsSmall-USA",
-                    "salaryValue": 25,
-                    "rowText": "Salary:\n                 25.00 USD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNH II   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                    "salaryValue": 151,
+                    "rowText": "Salary:\n                 151.00 USD\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNH II   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
                 },
                 {
                     "companyName": "",
                     "companyUrl": "",
-                    "salary": "25.00 USD",
+                    "salary": "151.00 USD",
                     "salaryCurrency": "USD",
                     "salaryFlagClass": "xflagsSmall-USA",
-                    "salaryValue": 25,
-                    "rowText": "Salary:\n                 25.00 USD"
+                    "salaryValue": 151,
+                    "rowText": "Salary:\n                 151.00 USD"
                 },
                 {
                     "companyName": "GLNH II",
@@ -25398,20 +25402,20 @@
                 {
                     "companyName": "International bank of Railman",
                     "companyUrl": "https://vara.e-sim.org/company.html?id=1",
-                    "salary": "1.00 BDT",
-                    "salaryCurrency": "BDT",
-                    "salaryFlagClass": "xflagsSmall-Bangladesh",
+                    "salary": "1.00 NPR",
+                    "salaryCurrency": "NPR",
+                    "salaryFlagClass": "xflagsSmall-Nepal",
                     "salaryValue": 1,
-                    "rowText": "Salary:\n                 1.00 BDT\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                    "rowText": "Salary:\n                 1.00 NPR\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
                 },
                 {
                     "companyName": "",
                     "companyUrl": "",
-                    "salary": "1.00 BDT",
-                    "salaryCurrency": "BDT",
-                    "salaryFlagClass": "xflagsSmall-Bangladesh",
+                    "salary": "1.00 NPR",
+                    "salaryCurrency": "NPR",
+                    "salaryFlagClass": "xflagsSmall-Nepal",
                     "salaryValue": 1,
-                    "rowText": "Salary:\n                 1.00 BDT"
+                    "rowText": "Salary:\n                 1.00 NPR"
                 },
                 {
                     "companyName": "International bank of Railman",
@@ -25423,13 +25427,15 @@
                     "rowText": "Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank"
                 }
             ],
-            "maxJobOfferValue": 25,
+            "maxJobOfferValue": 151,
             "maxJobOfferCurrency": "USD",
             "maxJobOfferFlagClass": "xflagsSmall-USA",
             "catalogOwner": "",
             "ownerAtSync": "USA",
             "ownerAtSyncFlagClass": "xflagsSmall-USA",
-            "ownerChanged": false
+            "ownerChanged": false,
+            "jobOffersSyncedAt": "2026-04-21T01:13:41+00:00",
+            "jobOffersSyncedAtDisplay": "2026-04-21 01:13:41"
         },
         "2473": {
             "regionId": "2473",
@@ -26573,8 +26579,8 @@
             "regionUrl": "https://vara.e-sim.org/region.html?id=2297",
             "countryId": "57",
             "npcUrl": "https://vara.e-sim.org/npcStatistics.html?regionId=2297",
-            "syncedAt": "2026-04-21T00:46:38+00:00",
-            "syncedAtDisplay": "2026-04-21 00:46:38",
+            "syncedAt": "2026-04-21T01:17:01+00:00",
+            "syncedAtDisplay": "2026-04-21 01:17:01",
             "npcCount": 3,
             "npcs": [
                 {
@@ -26633,29 +26639,29 @@
                 {
                     "companyName": "GLNP III",
                     "companyUrl": "https://vara.e-sim.org/company.html?id=1701",
-                    "salary": "25.00 EGP",
+                    "salary": "93.50 EGP",
                     "salaryCurrency": "EGP",
                     "salaryFlagClass": "xflagsSmall-Egypt",
-                    "salaryValue": 25,
-                    "rowText": "Salary:\n                 25.00 EGP\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNP III   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n        \n            \n                \n                \n                    \n                \n            \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 20.00 EGP\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   Asjut NPC   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Meow Meow Army   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 1.00 BDT\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n        \n              \nwindow.addEventListener('load', () => {\ndocument.getElementById('pagingButton').addEventListener('click', () => {\nwindow.location = 'jobMarket.html?countryId=26&minimalSkill=8&regionId=2297&page='+$('#pagingInput').val();\n});\n});\n\n1  2  3"
+                    "salaryValue": 93.5,
+                    "rowText": "Salary:\n                 93.50 EGP\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNP III   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n        \n            \n                \n                \n                    \n                \n            \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 20.00 EGP\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   Asjut NPC   \n            \n            \n                Employer:\n                \n                    \n                    \n                             Meow Meow Army   \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 1.00 CNY\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n        \n              1  2"
                 },
                 {
                     "companyName": "GLNP III",
                     "companyUrl": "https://vara.e-sim.org/company.html?id=1701",
-                    "salary": "25.00 EGP",
+                    "salary": "93.50 EGP",
                     "salaryCurrency": "EGP",
                     "salaryFlagClass": "xflagsSmall-Egypt",
-                    "salaryValue": 25,
-                    "rowText": "Salary:\n                 25.00 EGP\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNP III   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                    "salaryValue": 93.5,
+                    "rowText": "Salary:\n                 93.50 EGP\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNP III   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
                 },
                 {
                     "companyName": "",
                     "companyUrl": "",
-                    "salary": "25.00 EGP",
+                    "salary": "93.50 EGP",
                     "salaryCurrency": "EGP",
                     "salaryFlagClass": "xflagsSmall-Egypt",
-                    "salaryValue": 25,
-                    "rowText": "Salary:\n                 25.00 EGP"
+                    "salaryValue": 93.5,
+                    "rowText": "Salary:\n                 93.50 EGP"
                 },
                 {
                     "companyName": "GLNP III",
@@ -26696,20 +26702,20 @@
                 {
                     "companyName": "International bank of Railman",
                     "companyUrl": "https://vara.e-sim.org/company.html?id=1",
-                    "salary": "1.00 BDT",
-                    "salaryCurrency": "BDT",
-                    "salaryFlagClass": "xflagsSmall-Bangladesh",
+                    "salary": "1.00 CNY",
+                    "salaryCurrency": "CNY",
+                    "salaryFlagClass": "xflagsSmall-China",
                     "salaryValue": 1,
-                    "rowText": "Salary:\n                 1.00 BDT\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                    "rowText": "Salary:\n                 1.00 CNY\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
                 },
                 {
                     "companyName": "",
                     "companyUrl": "",
-                    "salary": "1.00 BDT",
-                    "salaryCurrency": "BDT",
-                    "salaryFlagClass": "xflagsSmall-Bangladesh",
+                    "salary": "1.00 CNY",
+                    "salaryCurrency": "CNY",
+                    "salaryFlagClass": "xflagsSmall-China",
                     "salaryValue": 1,
-                    "rowText": "Salary:\n                 1.00 BDT"
+                    "rowText": "Salary:\n                 1.00 CNY"
                 },
                 {
                     "companyName": "International bank of Railman",
@@ -26721,13 +26727,13 @@
                     "rowText": "Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank"
                 }
             ],
-            "maxJobOfferValue": 25,
+            "maxJobOfferValue": 93.5,
             "maxJobOfferCurrency": "EGP",
             "maxJobOfferFlagClass": "xflagsSmall-Egypt",
-            "catalogOwner": "",
+            "catalogOwner": "Egipto",
             "ownerAtSync": "Egypt",
             "ownerAtSyncFlagClass": "xflagsSmall-Egypt",
-            "ownerChanged": false
+            "ownerChanged": true
         },
         "21": {
             "regionId": "21",
@@ -26735,8 +26741,8 @@
             "regionUrl": "https://vara.e-sim.org/region.html?id=21",
             "countryId": "57",
             "npcUrl": "https://vara.e-sim.org/npcStatistics.html?regionId=21",
-            "syncedAt": "2026-04-21T00:46:45+00:00",
-            "syncedAtDisplay": "2026-04-21 00:46:45",
+            "syncedAt": "2026-04-21T01:17:34+00:00",
+            "syncedAtDisplay": "2026-04-21 01:17:34",
             "npcCount": 3,
             "npcs": [
                 {
@@ -26795,29 +26801,29 @@
                 {
                     "companyName": "GLNP IV",
                     "companyUrl": "https://vara.e-sim.org/company.html?id=1702",
-                    "salary": "30.50 EGP",
+                    "salary": "93.50 EGP",
                     "salaryCurrency": "EGP",
                     "salaryFlagClass": "xflagsSmall-Egypt",
-                    "salaryValue": 30.5,
-                    "rowText": "Salary:\n                 30.50 EGP\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNP IV   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 1.00 BDT\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n        \n              \nwindow.addEventListener('load', () => {\ndocument.getElementById('pagingButton').addEventListener('click', () => {\nwindow.location = 'jobMarket.html?countryId=26&minimalSkill=8&regionId=21&page='+$('#pagingInput').val();\n});\n});\n\n1  2  3"
+                    "salaryValue": 93.5,
+                    "rowText": "Salary:\n                 93.50 EGP\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNP IV   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n            \n                \n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    \n        \n            \n                \n            \n        \n        \n    \n\n\n\n\n            \n            \n                Salary:\n                 1.00 CNY\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply\n                \n            \n        \n    \n\n\n            \n            \n        \n        \n              1  2"
                 },
                 {
                     "companyName": "GLNP IV",
                     "companyUrl": "https://vara.e-sim.org/company.html?id=1702",
-                    "salary": "30.50 EGP",
+                    "salary": "93.50 EGP",
                     "salaryCurrency": "EGP",
                     "salaryFlagClass": "xflagsSmall-Egypt",
-                    "salaryValue": 30.5,
-                    "rowText": "Salary:\n                 30.50 EGP\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNP IV   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                    "salaryValue": 93.5,
+                    "rowText": "Salary:\n                 93.50 EGP\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                5\n            \n            \n                Company:\n                   GLNP IV   \n            \n            \n                Employer:\n                \n                    \n                         ★ Galenno  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
                 },
                 {
                     "companyName": "",
                     "companyUrl": "",
-                    "salary": "30.50 EGP",
+                    "salary": "93.50 EGP",
                     "salaryCurrency": "EGP",
                     "salaryFlagClass": "xflagsSmall-Egypt",
-                    "salaryValue": 30.5,
-                    "rowText": "Salary:\n                 30.50 EGP"
+                    "salaryValue": 93.5,
+                    "rowText": "Salary:\n                 93.50 EGP"
                 },
                 {
                     "companyName": "GLNP IV",
@@ -26831,20 +26837,20 @@
                 {
                     "companyName": "International bank of Railman",
                     "companyUrl": "https://vara.e-sim.org/company.html?id=1",
-                    "salary": "1.00 BDT",
-                    "salaryCurrency": "BDT",
-                    "salaryFlagClass": "xflagsSmall-Bangladesh",
+                    "salary": "1.00 CNY",
+                    "salaryCurrency": "CNY",
+                    "salaryFlagClass": "xflagsSmall-China",
                     "salaryValue": 1,
-                    "rowText": "Salary:\n                 1.00 BDT\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
+                    "rowText": "Salary:\n                 1.00 CNY\n            \n        \n        \n        \n            \n                Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank  \n                    \n                    \n                    \n                \n            \n        \n        \n        \n        \n            \n                \n                \n                    Apply"
                 },
                 {
                     "companyName": "",
                     "companyUrl": "",
-                    "salary": "1.00 BDT",
-                    "salaryCurrency": "BDT",
-                    "salaryFlagClass": "xflagsSmall-Bangladesh",
+                    "salary": "1.00 CNY",
+                    "salaryCurrency": "CNY",
+                    "salaryFlagClass": "xflagsSmall-China",
                     "salaryValue": 1,
-                    "rowText": "Salary:\n                 1.00 BDT"
+                    "rowText": "Salary:\n                 1.00 CNY"
                 },
                 {
                     "companyName": "International bank of Railman",
@@ -26856,13 +26862,13 @@
                     "rowText": "Min. Economic Skill:\n                1\n            \n            \n                Company:\n                   International bank of Railman   \n            \n            \n                Employer:\n                \n                    \n                         Game Bank"
                 }
             ],
-            "maxJobOfferValue": 30.5,
+            "maxJobOfferValue": 93.5,
             "maxJobOfferCurrency": "EGP",
             "maxJobOfferFlagClass": "xflagsSmall-Egypt",
-            "catalogOwner": "",
+            "catalogOwner": "Egipto",
             "ownerAtSync": "Egypt",
             "ownerAtSyncFlagClass": "xflagsSmall-Egypt",
-            "ownerChanged": false
+            "ownerChanged": true
         },
         "2257": {
             "regionId": "2257",

@@ -3,6 +3,61 @@ declare(strict_types=1);
 
 session_start();
 
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
+error_reporting(E_ALL);
+
+set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {
+	if ((error_reporting() & $severity) === 0) {
+		return false;
+	}
+
+	throw new ErrorException($message, 0, $severity, $file, $line);
+});
+
+set_exception_handler(static function (Throwable $e): void {
+	if (!headers_sent()) {
+		header('Content-Type: text/html; charset=UTF-8');
+		http_response_code(200);
+	}
+
+	echo '<h1>Error PHP</h1>';
+	echo '<p><strong>Tipo:</strong> ' . htmlspecialchars(get_class($e), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>';
+	echo '<p><strong>Mensaje:</strong> ' . htmlspecialchars($e->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>';
+	echo '<p><strong>Archivo:</strong> ' . htmlspecialchars($e->getFile(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>';
+	echo '<p><strong>Linea:</strong> ' . (int) $e->getLine() . '</p>';
+	echo '<pre style="white-space:pre-wrap;background:#f6f8fa;border:1px solid #d0d7de;border-radius:8px;padding:10px;">'
+		. htmlspecialchars($e->getTraceAsString(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+		. '</pre>';
+	exit;
+});
+
+register_shutdown_function(static function (): void {
+	$lastError = error_get_last();
+	if (!is_array($lastError)) {
+		return;
+	}
+
+	$fatalTypes = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR];
+	if (!in_array((int) ($lastError['type'] ?? 0), $fatalTypes, true)) {
+		return;
+	}
+
+	if (!headers_sent()) {
+		header('Content-Type: text/html; charset=UTF-8');
+		http_response_code(200);
+	}
+
+	$message = (string) ($lastError['message'] ?? 'Fatal error');
+	$file = (string) ($lastError['file'] ?? 'desconocido');
+	$line = (int) ($lastError['line'] ?? 0);
+
+	echo '<h1>Error fatal PHP</h1>';
+	echo '<p><strong>Mensaje:</strong> ' . htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>';
+	echo '<p><strong>Archivo:</strong> ' . htmlspecialchars($file, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>';
+	echo '<p><strong>Linea:</strong> ' . $line . '</p>';
+});
+
 function loadDotEnv(string $envPath): array
 {
 	if (!is_file($envPath) || !is_readable($envPath)) {

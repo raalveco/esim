@@ -1,12 +1,12 @@
 {
-    "syncedAt": "2026-04-21T00:50:45+00:00",
-    "syncedAtDisplay": "2026-04-21 00:50:45",
+    "syncedAt": "2026-04-21T01:13:32+00:00",
+    "syncedAtDisplay": "2026-04-21 01:13:32",
     "sourceUrl": "https://vara.e-sim.org/business.html?businessType=COMPANIES",
     "walletBalances": [
         {
             "flagClass": "xflagsSmall-Gold",
-            "amountValue": 221.33,
-            "amountDisplay": "221.33",
+            "amountValue": 226.33,
+            "amountDisplay": "226.33",
             "currencyCode": "Gold"
         },
         {
