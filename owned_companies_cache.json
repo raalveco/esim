@@ -1,12 +1,12 @@
 {
-    "syncedAt": "2026-04-21T01:13:32+00:00",
-    "syncedAtDisplay": "2026-04-21 01:13:32",
+    "syncedAt": "2026-04-21T01:22:19+00:00",
+    "syncedAtDisplay": "2026-04-21 01:22:19",
     "sourceUrl": "https://vara.e-sim.org/business.html?businessType=COMPANIES",
     "walletBalances": [
         {
             "flagClass": "xflagsSmall-Gold",
-            "amountValue": 226.33,
-            "amountDisplay": "226.33",
+            "amountValue": 203.29,
+            "amountDisplay": "203.29",
             "currencyCode": "Gold"
         },
         {
@@ -46,6 +46,12 @@
             "currencyCode": "BAM"
         },
         {
+            "flagClass": "xflagsSmall-Egypt",
+            "amountValue": 587.76,
+            "amountDisplay": "587.76",
+            "currencyCode": "EGP"
+        },
+        {
             "flagClass": "xflagsSmall-United-Arab-Emirates",
             "amountValue": 560.5,
             "amountDisplay": "560.50",
@@ -74,12 +80,6 @@
             "amountValue": 311.27,
             "amountDisplay": "311.27",
             "currencyCode": "NOK"
-        },
-        {
-            "flagClass": "xflagsSmall-Egypt",
-            "amountValue": 297.76,
-            "amountDisplay": "297.76",
-            "currencyCode": "EGP"
         },
         {
             "flagClass": "xflagsSmall-Laos",

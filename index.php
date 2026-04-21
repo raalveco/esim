@@ -3465,7 +3465,8 @@ function extractAdvancedRegistrationForm(string $html, string $baseUrl): array
 
 		$candidateAction = strtolower(trim((string) $candidateNode->getAttribute('action')));
 		$candidateId = strtolower(trim((string) $candidateNode->getAttribute('id')));
-		$hasCountrySelect = ($xpath->query('.//select[contains(translate(@name, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "country")]', $candidateNode)?->length ?? 0) > 0;
+		$countrySelectNodes = $xpath->query('.//select[contains(translate(@name, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "country")]', $candidateNode);
+		$hasCountrySelect = $countrySelectNodes instanceof DOMNodeList && $countrySelectNodes->length > 0;
 		if (str_contains($candidateAction, 'registration') || str_contains($candidateId, 'register') || $hasCountrySelect) {
 			$selectedForm = $candidateNode;
 			break;
@@ -7052,7 +7053,8 @@ function extractBattleCountries(DOMXPath $xpath, string $html): array
 
 function extractCountryFromAlliesList(DOMXPath $xpath, DOMElement $alliesList): string
 {
-	$directSpan = $xpath->query('./span[normalize-space(text())!=""]', $alliesList)?->item(0);
+	$directSpanNodes = $xpath->query('./span[normalize-space(text())!=""]', $alliesList);
+	$directSpan = $directSpanNodes instanceof DOMNodeList ? $directSpanNodes->item(0) : null;
 	if ($directSpan instanceof DOMElement) {
 		$name = compactNodeText((string) $directSpan->textContent);
 		if ($name !== '') {
@@ -7070,7 +7072,8 @@ function extractCountryFromAlliesList(DOMXPath $xpath, DOMElement $alliesList): 
 		}
 	}
 
-	$fallbackSpan = $xpath->query('.//span[normalize-space(text())!="" and not(ancestor::*[contains(concat(" ", normalize-space(@class), " "), " alliesPopup ")])]', $alliesList)?->item(0);
+	$fallbackSpanNodes = $xpath->query('.//span[normalize-space(text())!="" and not(ancestor::*[contains(concat(" ", normalize-space(@class), " "), " alliesPopup ")])]', $alliesList);
+	$fallbackSpan = $fallbackSpanNodes instanceof DOMNodeList ? $fallbackSpanNodes->item(0) : null;
 	if ($fallbackSpan instanceof DOMElement) {
 		$name = compactNodeText((string) $fallbackSpan->textContent);
 		if ($name !== '') {
