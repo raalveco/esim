@@ -548,6 +548,15 @@ $changeEmailResult = [
 	'responseSnippet' => '',
 	'error' => '',
 ];
+$registeredEmailResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => 'https://vara.e-sim.org/editCitizen.html?editCitizenPage=PERSONAL_DATA',
+	'email' => '',
+	'error' => '',
+];
 $resendConfirmationMailResult = [
 	'attempted' => false,
 	'saved' => false,
@@ -1508,6 +1517,34 @@ if ($fatalError === '' && $resendConfirmationMailRequested) {
 		'url' => (string) ($resendStep['effectiveUrl'] ?: $resendConfirmationMailUrl),
 		'responseSnippet' => trim(substr(compactNodeText($resendBody), 0, 260)),
 		'error' => (string) ($resendStep['error'] ?? ''),
+	];
+}
+
+if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? ''))) {
+	$registeredEmailUrl = 'https://vara.e-sim.org/editCitizen.html?editCitizenPage=PERSONAL_DATA';
+	$registeredEmailStep = curlRequest($ch, $registeredEmailUrl, [
+		CURLOPT_POST => false,
+		CURLOPT_HTTPGET => true,
+		CURLOPT_HTTPHEADER => $headers,
+	]);
+
+	$registeredEmailBody = (string) ($registeredEmailStep['body'] ?? '');
+	$registeredEmailHttpOk = $registeredEmailStep['errno'] === 0
+		&& (int) ($registeredEmailStep['statusCode'] ?? 0) >= 200
+		&& (int) ($registeredEmailStep['statusCode'] ?? 0) < 400
+		&& trim($registeredEmailBody) !== '';
+	$registeredEmailValue = $registeredEmailHttpOk ? extractRegisteredEmailFromPersonalDataHtml($registeredEmailBody) : '';
+
+	$registeredEmailResult = [
+		'attempted' => true,
+		'saved' => $registeredEmailHttpOk,
+		'reason' => !$registeredEmailHttpOk
+			? ((int) ($registeredEmailStep['errno'] ?? 0) !== 0 ? 'registered-email-request-error' : 'registered-email-http-error')
+			: ($registeredEmailValue !== '' ? 'registered-email-loaded' : 'registered-email-empty'),
+		'httpStatus' => (int) ($registeredEmailStep['statusCode'] ?? 0),
+		'url' => (string) ($registeredEmailStep['effectiveUrl'] ?: $registeredEmailUrl),
+		'email' => $registeredEmailValue,
+		'error' => (string) ($registeredEmailStep['error'] ?? ''),
 	];
 }
 
@@ -2745,6 +2782,14 @@ $_SESSION['curl_last_login'] = [
 		'httpStatus' => (int) ($changeEmailResult['httpStatus'] ?? 0),
 		'url' => (string) ($changeEmailResult['url'] ?? ''),
 		'email' => (string) ($changeEmailResult['email'] ?? ''),
+	],
+	'registered_email_result' => [
+		'attempted' => (bool) ($registeredEmailResult['attempted'] ?? false),
+		'saved' => (bool) ($registeredEmailResult['saved'] ?? false),
+		'reason' => (string) ($registeredEmailResult['reason'] ?? ''),
+		'httpStatus' => (int) ($registeredEmailResult['httpStatus'] ?? 0),
+		'url' => (string) ($registeredEmailResult['url'] ?? ''),
+		'email' => (string) ($registeredEmailResult['email'] ?? ''),
 	],
 	'resend_confirmation_mail_result' => [
 		'attempted' => (bool) ($resendConfirmationMailResult['attempted'] ?? false),
@@ -5756,6 +5801,38 @@ function extractStorageMoneyAccountsFromHtml(string $html): array
 	return $accounts;
 }
 
+function extractRegisteredEmailFromPersonalDataHtml(string $html): string
+{
+	if (trim($html) === '') {
+		return '';
+	}
+
+	$dom = new DOMDocument();
+	libxml_use_internal_errors(true);
+	$dom->loadHTML($html);
+	libxml_clear_errors();
+	$xpath = new DOMXPath($dom);
+
+	$emailNode = $xpath->query('//form[contains(@action, "editCitizen") and .//input[@name="action" and @value="CHANGE_EMAIL"]]//input[@name="mail"][1]')->item(0);
+	if (!($emailNode instanceof DOMElement)) {
+		$emailNode = $xpath->query('//input[@name="mail"][1]')->item(0);
+	}
+	if (!($emailNode instanceof DOMElement)) {
+		$emailNode = $xpath->query('//input[@type="email"][1]')->item(0);
+	}
+
+	if (!($emailNode instanceof DOMElement)) {
+		return '';
+	}
+
+	$email = trim((string) $emailNode->getAttribute('value'));
+	if ($email === '') {
+		return '';
+	}
+
+	return filter_var($email, FILTER_VALIDATE_EMAIL) !== false ? $email : '';
+}
+
 function extractStorageEquipmentInventoryFromHtml(string $html): array
 {
 	if (trim($html) === '') {
@@ -8503,10 +8580,29 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 	<div class="section-panel">
 		<h2 class="section-title">Cuenta</h2>
 		<p class="section-meta" style="margin:0;">Cambiar correo y reenviar correo de confirmacion de la cuenta.</p>
+		<?php
+		$changeEmailPrefillValue = trim((string) ($_POST['change_email'] ?? ''));
+		if ($changeEmailPrefillValue === '') {
+			$changeEmailPrefillValue = trim((string) ($registeredEmailResult['email'] ?? ''));
+		}
+		?>
+		<?php if (!empty($registeredEmailResult['attempted']) && !empty($registeredEmailResult['saved'])): ?>
+			<p class="section-meta" style="margin:6px 0 0;">
+				Correo registrado: <?= htmlspecialchars((string) (($registeredEmailResult['email'] ?? '') !== '' ? $registeredEmailResult['email'] : 'No detectado'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= !empty($registeredEmailResult['url']) ? ' | URL ' . htmlspecialchars((string) $registeredEmailResult['url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= isset($registeredEmailResult['httpStatus']) ? ' | HTTP ' . (int) $registeredEmailResult['httpStatus'] : '' ?>
+			</p>
+		<?php elseif (!empty($registeredEmailResult['attempted'])): ?>
+			<p class="warn" style="margin:6px 0 0;">
+				No se pudo leer el correo registrado (<?= htmlspecialchars((string) ($registeredEmailResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>)
+				<?= isset($registeredEmailResult['httpStatus']) ? ' | HTTP ' . (int) $registeredEmailResult['httpStatus'] : '' ?>
+				<?= !empty($registeredEmailResult['error']) ? ' | Error cURL: ' . htmlspecialchars((string) $registeredEmailResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+		<?php endif; ?>
 		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
 			<input type="hidden" name="action" value="change-email">
 			<label for="change_email_input"><strong>Nuevo Email:</strong></label>
-			<input id="change_email_input" type="email" name="change_email" value="<?= htmlspecialchars((string) ($_POST['change_email'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="correo@dominio.com" required style="min-width:280px;padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
+			<input id="change_email_input" type="email" name="change_email" value="<?= htmlspecialchars($changeEmailPrefillValue, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="correo@dominio.com" required style="min-width:280px;padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
 			<button type="submit" class="train-button">Cambiar e-mail</button>
 		</form>
 
