@@ -3,6 +3,40 @@ declare(strict_types=1);
 
 session_start();
 
+if (!function_exists('str_contains')) {
+	function str_contains(string $haystack, string $needle): bool
+	{
+		return $needle === '' || strpos($haystack, $needle) !== false;
+	}
+}
+
+if (!function_exists('str_starts_with')) {
+	function str_starts_with(string $haystack, string $needle): bool
+	{
+		if ($needle === '') {
+			return true;
+		}
+
+		return substr($haystack, 0, strlen($needle)) === $needle;
+	}
+}
+
+if (!function_exists('str_ends_with')) {
+	function str_ends_with(string $haystack, string $needle): bool
+	{
+		if ($needle === '') {
+			return true;
+		}
+
+		$needleLength = strlen($needle);
+		if ($needleLength > strlen($haystack)) {
+			return false;
+		}
+
+		return substr($haystack, -$needleLength) === $needle;
+	}
+}
+
 ini_set('display_errors', '1');
 ini_set('display_startup_errors', '1');
 error_reporting(E_ALL);
