@@ -84,7 +84,14 @@ $allowAutoRegistration = envToBool($env['ESIM_ALLOW_AUTO_REGISTRATION'] ?? null,
 
 $cookieDir = __DIR__ . DIRECTORY_SEPARATOR . 'tmp';
 if (!is_dir($cookieDir)) {
-	mkdir($cookieDir, 0777, true);
+	$created = @mkdir($cookieDir, 0777, true);
+	if ($created !== true && !is_dir($cookieDir)) {
+		header('Content-Type: text/html; charset=UTF-8');
+		http_response_code(200);
+		echo '<h1>Error de configuracion</h1>';
+		echo '<p>No se pudo crear la carpeta <strong>simulador/tmp</strong>. Revisa permisos de escritura del servidor web.</p>';
+		exit;
+	}
 }
 
 $cookieSuffix = preg_replace('/[^a-zA-Z0-9_-]/', '_', strtolower($username));
@@ -96,7 +103,22 @@ $defaultCookieFile = $cookieDir . DIRECTORY_SEPARATOR . 'vara_cookie_' . $cookie
 $cookieFile = $defaultCookieFile;
 $_SESSION['curl_cookie_file'] = $cookieFile;
 
+if (!function_exists('curl_init')) {
+	header('Content-Type: text/html; charset=UTF-8');
+	http_response_code(200);
+	echo '<h1>Error de configuracion</h1>';
+	echo '<p>La extension <strong>cURL</strong> no esta habilitada en PHP para este servidor.</p>';
+	exit;
+}
+
 $ch = curl_init();
+if ($ch === false) {
+	header('Content-Type: text/html; charset=UTF-8');
+	http_response_code(200);
+	echo '<h1>Error de inicializacion</h1>';
+	echo '<p>No se pudo inicializar cURL. Reinicia PHP/Apache y revisa error logs del servidor.</p>';
+	exit;
+}
 
 $headers = [
 	'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
@@ -106,7 +128,7 @@ $headers = [
 	'Upgrade-Insecure-Requests: 1',
 ];
 
-curl_setopt_array($ch, [
+$curlOptsOk = curl_setopt_array($ch, [
 	CURLOPT_RETURNTRANSFER => true,
 	CURLOPT_FOLLOWLOCATION => true,
 	CURLOPT_MAXREDIRS => 10,
@@ -121,6 +143,13 @@ curl_setopt_array($ch, [
 	CURLOPT_COOKIEJAR => $cookieFile,
 	CURLOPT_COOKIEFILE => $cookieFile,
 ]);
+if ($curlOptsOk !== true) {
+	header('Content-Type: text/html; charset=UTF-8');
+	http_response_code(200);
+	echo '<h1>Error de configuracion cURL</h1>';
+	echo '<p>No se pudo configurar cURL para esta sesion. Revisa permisos de cookie y ajustes de SSL/PHP.</p>';
+	exit;
+}
 
 $step1 = curlRequest($ch, $baseUrl);
 $fatalError = '';
