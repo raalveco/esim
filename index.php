@@ -298,6 +298,8 @@ $partyStatusCheckRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'party-status-check';
 $partyInspectRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'party-inspect-url';
+$partyJoinRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+	&& (string) ($_POST['action'] ?? '') === 'party-join-now';
 $productMarketRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'product-market-load';
 $productMarketOffersRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
@@ -605,7 +607,20 @@ $partyInspectResult = [
 	'hasJoinButton' => false,
 	'joinActionUrl' => '',
 	'joinMethod' => '',
+	'joinFields' => [],
 	'joinIndicator' => '',
+	'responseSnippet' => '',
+	'error' => '',
+];
+$partyJoinResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => '',
+	'partyName' => '',
+	'joinActionUrl' => '',
+	'joinMethod' => '',
 	'responseSnippet' => '',
 	'error' => '',
 ];
@@ -1666,6 +1681,7 @@ if ($fatalError === '' && $partyInspectRequested) {
 		'hasJoinButton' => false,
 		'joinActionUrl' => '',
 		'joinMethod' => '',
+		'joinFields' => [],
 		'joinIndicator' => '',
 		'responseSnippet' => '',
 		'error' => '',
@@ -1692,6 +1708,7 @@ if ($fatalError === '' && $partyInspectRequested) {
 				'hasJoinButton' => false,
 				'joinActionUrl' => '',
 				'joinMethod' => '',
+				'joinFields' => [],
 				'joinIndicator' => '',
 			];
 
@@ -1709,9 +1726,96 @@ if ($fatalError === '' && $partyInspectRequested) {
 			'hasJoinButton' => !empty($joinInfo['hasJoinButton']),
 			'joinActionUrl' => (string) ($joinInfo['joinActionUrl'] ?? ''),
 			'joinMethod' => (string) ($joinInfo['joinMethod'] ?? ''),
+			'joinFields' => is_array($joinInfo['joinFields'] ?? null) ? (array) $joinInfo['joinFields'] : [],
 			'joinIndicator' => (string) ($joinInfo['joinIndicator'] ?? ''),
 			'responseSnippet' => trim(substr(compactNodeText($partyBody), 0, 280)),
 			'error' => (string) ($partyStep['error'] ?? ''),
+		];
+	}
+}
+
+if ($fatalError === '' && $partyJoinRequested) {
+	$partyName = trim((string) ($_POST['party_name'] ?? ''));
+	$joinActionUrl = trim((string) ($_POST['party_join_action_url'] ?? ''));
+	$joinMethod = strtoupper(trim((string) ($_POST['party_join_method'] ?? 'POST')));
+	$joinChoice = trim((string) ($_POST['party_join_choice'] ?? 'no'));
+	$joinFieldsEncoded = trim((string) ($_POST['party_join_fields_encoded'] ?? ''));
+	$joinFieldsDecoded = $joinFieldsEncoded !== '' ? base64_decode($joinFieldsEncoded, true) : '';
+	$joinFields = is_string($joinFieldsDecoded) ? json_decode($joinFieldsDecoded, true) : [];
+	if (!is_array($joinFields)) {
+		$joinFields = [];
+	}
+
+	$partyJoinResult = [
+		'attempted' => true,
+		'saved' => false,
+		'reason' => $joinChoice === 'yes' ? 'party-join-missing-action' : 'party-join-not-confirmed',
+		'httpStatus' => 0,
+		'url' => '',
+		'partyName' => $partyName,
+		'joinActionUrl' => $joinActionUrl,
+		'joinMethod' => $joinMethod,
+		'responseSnippet' => '',
+		'error' => '',
+	];
+
+	if ($joinChoice === 'yes' && $joinActionUrl !== '') {
+		if ($joinMethod !== 'GET' && $joinMethod !== 'POST') {
+			$joinMethod = 'POST';
+		}
+
+		$joinReferer = trim((string) ($_POST['party_url'] ?? ''));
+		if ($joinReferer === '') {
+			$joinReferer = (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html');
+		}
+
+		$joinHeaders = array_merge($headers, [
+			'Origin: https://vara.e-sim.org',
+			'Referer: ' . $joinReferer,
+		]);
+
+		if ($joinMethod === 'GET') {
+			$joinUrlWithParams = $joinActionUrl;
+			if ($joinFields !== []) {
+				$joinUrlWithParams .= (str_contains($joinUrlWithParams, '?') ? '&' : '?') . http_build_query($joinFields);
+			}
+			$joinStep = curlRequest($ch, $joinUrlWithParams, [
+				CURLOPT_POST => false,
+				CURLOPT_HTTPGET => true,
+				CURLOPT_HTTPHEADER => $joinHeaders,
+			]);
+		} else {
+			$joinStep = curlRequest($ch, $joinActionUrl, [
+				CURLOPT_POST => true,
+				CURLOPT_HTTPGET => false,
+				CURLOPT_POSTFIELDS => http_build_query($joinFields),
+				CURLOPT_HTTPHEADER => array_merge($joinHeaders, [
+					'Content-Type: application/x-www-form-urlencoded',
+				]),
+			]);
+		}
+
+		$joinBody = (string) ($joinStep['body'] ?? '');
+		$joinBodyLower = strtolower($joinBody);
+		$joinHttpOk = $joinStep['errno'] === 0
+			&& (int) ($joinStep['statusCode'] ?? 0) >= 200
+			&& (int) ($joinStep['statusCode'] ?? 0) < 400;
+		$joinLooksSuccess = preg_match('/(joined|join request sent|application sent|success|you joined)/i', $joinBody) === 1;
+		$joinLooksError = preg_match('/(error|failed|forbidden|denied|cannot join|not logged|already in a party|need to confirm your email)/i', $joinBody) === 1;
+
+		$partyJoinResult = [
+			'attempted' => true,
+			'saved' => $joinHttpOk && ($joinLooksSuccess || (!$joinLooksError && trim($joinBodyLower) !== '')),
+			'reason' => !$joinHttpOk
+				? ((int) ($joinStep['errno'] ?? 0) !== 0 ? 'party-join-request-error' : 'party-join-http-error')
+				: ($joinLooksSuccess ? 'party-join-submitted' : ($joinLooksError ? 'party-join-rejected' : 'party-join-processed')),
+			'httpStatus' => (int) ($joinStep['statusCode'] ?? 0),
+			'url' => (string) ($joinStep['effectiveUrl'] ?: $joinActionUrl),
+			'partyName' => $partyName,
+			'joinActionUrl' => $joinActionUrl,
+			'joinMethod' => $joinMethod,
+			'responseSnippet' => trim(substr(compactNodeText($joinBody), 0, 280)),
+			'error' => (string) ($joinStep['error'] ?? ''),
 		];
 	}
 }
@@ -3018,6 +3122,14 @@ $_SESSION['curl_last_login'] = [
 		'url' => (string) ($partyInspectResult['url'] ?? ''),
 		'partyName' => (string) ($partyInspectResult['partyName'] ?? ''),
 		'joinDetected' => (bool) ($partyInspectResult['joinDetected'] ?? false),
+	],
+	'party_join_result' => [
+		'attempted' => (bool) ($partyJoinResult['attempted'] ?? false),
+		'saved' => (bool) ($partyJoinResult['saved'] ?? false),
+		'reason' => (string) ($partyJoinResult['reason'] ?? ''),
+		'httpStatus' => (int) ($partyJoinResult['httpStatus'] ?? 0),
+		'url' => (string) ($partyJoinResult['url'] ?? ''),
+		'partyName' => (string) ($partyJoinResult['partyName'] ?? ''),
 	],
 	'storage_money_result' => [
 		'attempted' => (bool) ($storageMoneyResult['attempted'] ?? false),
@@ -4497,6 +4609,7 @@ function extractPartyJoinAvailabilityFromHtml(string $html, string $baseUrl): ar
 		'hasJoinButton' => false,
 		'joinActionUrl' => '',
 		'joinMethod' => '',
+		'joinFields' => [],
 		'joinIndicator' => '',
 	];
 
@@ -4524,6 +4637,62 @@ function extractPartyJoinAvailabilityFromHtml(string $html, string $baseUrl): ar
 			$result['joinActionUrl'] = $actionRaw !== '' ? resolveUrl($baseUrl, $actionRaw) : '';
 			$method = strtoupper(trim((string) $formNode->getAttribute('method')));
 			$result['joinMethod'] = $method !== '' ? $method : 'POST';
+
+			$fields = [];
+			$fieldNodes = $xpath->query('.//input | .//select | .//textarea', $formNode);
+			if ($fieldNodes) {
+				foreach ($fieldNodes as $fieldNode) {
+					if (!($fieldNode instanceof DOMElement)) {
+						continue;
+					}
+
+					$fieldName = trim((string) $fieldNode->getAttribute('name'));
+					if ($fieldName === '') {
+						continue;
+					}
+
+					$tagName = strtolower($fieldNode->tagName);
+					$type = $tagName === 'input' ? strtolower(trim((string) $fieldNode->getAttribute('type'))) : $tagName;
+					if ($type === '') {
+						$type = 'text';
+					}
+
+					if ($tagName === 'input' && in_array($type, ['button', 'submit', 'image', 'file'], true)) {
+						continue;
+					}
+
+					if (($type === 'checkbox' || $type === 'radio') && !$fieldNode->hasAttribute('checked')) {
+						continue;
+					}
+
+					$fieldValue = '';
+					if ($tagName === 'select') {
+						$selectedOption = $xpath->query('.//option[@selected][1]', $fieldNode)->item(0);
+						if ($selectedOption instanceof DOMElement) {
+							$fieldValue = trim((string) $selectedOption->getAttribute('value'));
+							if ($fieldValue === '') {
+								$fieldValue = trim((string) $selectedOption->textContent);
+							}
+						} else {
+							$firstOption = $xpath->query('.//option[1]', $fieldNode)->item(0);
+							if ($firstOption instanceof DOMElement) {
+								$fieldValue = trim((string) $firstOption->getAttribute('value'));
+								if ($fieldValue === '') {
+									$fieldValue = trim((string) $firstOption->textContent);
+								}
+							}
+						}
+					} elseif ($tagName === 'textarea') {
+						$fieldValue = trim((string) $fieldNode->textContent);
+					} else {
+						$fieldValue = trim((string) $fieldNode->getAttribute('value'));
+					}
+
+					$fields[$fieldName] = $fieldValue;
+				}
+			}
+
+			$result['joinFields'] = $fields;
 			$result['joinIndicator'] = 'join-form';
 		}
 	}
@@ -9055,8 +9224,48 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 				<?= !empty($partyInspectResult['joinActionUrl']) ? ' | Action ' . htmlspecialchars((string) $partyInspectResult['joinActionUrl'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
 				<?= !empty($partyInspectResult['joinIndicator']) ? ' | Indicador ' . htmlspecialchars((string) $partyInspectResult['joinIndicator'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
 			</p>
+			<?php
+			$partyJoinFields = is_array($partyInspectResult['joinFields'] ?? null) ? (array) $partyInspectResult['joinFields'] : [];
+			$partyJoinFieldsEncoded = base64_encode((string) json_encode($partyJoinFields));
+			$partyJoinActionUrl = trim((string) ($partyInspectResult['joinActionUrl'] ?? ''));
+			$partyJoinMethod = trim((string) ($partyInspectResult['joinMethod'] ?? 'POST'));
+			?>
+			<?php if (!empty($partyInspectResult['joinDetected']) && $partyJoinActionUrl !== ''): ?>
+				<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;padding:10px;border:1px solid #d7e0ee;border-radius:8px;background:#f8fbff;">
+					<input type="hidden" name="action" value="party-join-now">
+					<input type="hidden" name="party_name" value="<?= htmlspecialchars((string) ($partyInspectResult['partyName'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+					<input type="hidden" name="party_url" value="<?= htmlspecialchars((string) ($partyInspectResult['url'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+					<input type="hidden" name="party_join_action_url" value="<?= htmlspecialchars($partyJoinActionUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+					<input type="hidden" name="party_join_method" value="<?= htmlspecialchars($partyJoinMethod, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+					<input type="hidden" name="party_join_fields_encoded" value="<?= htmlspecialchars($partyJoinFieldsEncoded, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+					<label for="party_join_choice_input"><strong>Confirmar union:</strong></label>
+					<select id="party_join_choice_input" name="party_join_choice" style="padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
+						<option value="no" selected>No, solo preparar</option>
+						<option value="yes">Si, unirme ahora</option>
+					</select>
+					<button type="submit" class="train-button">Unirse al Partido</button>
+					<span class="section-meta">Listo: usa action y campos detectados del formulario real.</span>
+				</form>
+			<?php elseif (!empty($partyInspectResult['joinDetected'])): ?>
+				<p class="warn" style="margin:6px 0 0;">Se detecto control de union, pero sin action URL utilizable.</p>
+			<?php endif; ?>
 			<?php if (!empty($partyInspectResult['responseSnippet'])): ?>
 				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $partyInspectResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+		<?php endif; ?>
+
+		<?php if (!empty($partyJoinResult['attempted'])): ?>
+			<p class="<?= !empty($partyJoinResult['saved']) ? 'ok' : 'warn' ?>" style="margin:8px 0 0;">
+				Unirse al partido: <?= htmlspecialchars((string) ($partyJoinResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= !empty($partyJoinResult['partyName']) ? ' | Partido ' . htmlspecialchars((string) $partyJoinResult['partyName'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($partyJoinResult['url']) ? ' | URL ' . htmlspecialchars((string) $partyJoinResult['url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($partyJoinResult['joinMethod']) ? ' | Metodo ' . htmlspecialchars((string) $partyJoinResult['joinMethod'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($partyJoinResult['joinActionUrl']) ? ' | Action ' . htmlspecialchars((string) $partyJoinResult['joinActionUrl'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= isset($partyJoinResult['httpStatus']) ? ' | HTTP ' . (int) $partyJoinResult['httpStatus'] : '' ?>
+				<?= !empty($partyJoinResult['error']) ? ' | Error cURL: ' . htmlspecialchars((string) $partyJoinResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+			<?php if (!empty($partyJoinResult['responseSnippet'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $partyJoinResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
 			<?php endif; ?>
 		<?php endif; ?>
 	</div>
