@@ -553,7 +553,7 @@ $resendConfirmationMailResult = [
 	'saved' => false,
 	'reason' => 'not-attempted',
 	'httpStatus' => 0,
-	'url' => 'https://vara.e-sim.org//resendConfirmationMail.html',
+	'url' => 'https://vara.e-sim.org/resendConfirmationMail.html',
 	'responseSnippet' => '',
 	'error' => '',
 ];
@@ -1483,7 +1483,7 @@ if ($fatalError === '' && $changeEmailRequested) {
 }
 
 if ($fatalError === '' && $resendConfirmationMailRequested) {
-	$resendConfirmationMailUrl = 'https://vara.e-sim.org//resendConfirmationMail.html';
+	$resendConfirmationMailUrl = 'https://vara.e-sim.org/resendConfirmationMail.html';
 	$resendStep = curlRequest($ch, $resendConfirmationMailUrl, [
 		CURLOPT_POST => false,
 		CURLOPT_HTTPGET => true,
@@ -8513,7 +8513,7 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
 			<input type="hidden" name="action" value="resend-confirmation-mail">
 			<button type="submit" class="train-button">Solicitar correo de confirmacion</button>
-			<span class="section-meta">GET: https://vara.e-sim.org//resendConfirmationMail.html</span>
+			<span class="section-meta">GET: https://vara.e-sim.org/resendConfirmationMail.html</span>
 		</form>
 
 		<?php if (!empty($changeEmailResult['attempted'])): ?>
