@@ -294,6 +294,8 @@ $resendConfirmationMailRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'PO
 	&& (string) ($_POST['action'] ?? '') === 'resend-confirmation-mail';
 $confirmMailCodeRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'confirm-mail-code';
+$partyStatusCheckRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+	&& (string) ($_POST['action'] ?? '') === 'party-status-check';
 $productMarketRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'product-market-load';
 $productMarketOffersRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
@@ -576,6 +578,16 @@ $confirmMailCodeResult = [
 	'url' => '',
 	'citizenId' => '',
 	'stamp' => '',
+	'responseSnippet' => '',
+	'error' => '',
+];
+$partyStatusCheckResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => 'https://vara.e-sim.org/myParty.html',
+	'needsEmailConfirmation' => false,
 	'responseSnippet' => '',
 	'error' => '',
 ];
@@ -1592,6 +1604,35 @@ if ($fatalError === '' && $confirmMailCodeRequested) {
 			'error' => (string) ($confirmStep['error'] ?? ''),
 		];
 	}
+}
+
+if ($fatalError === '' && $partyStatusCheckRequested) {
+	$partyUrl = 'https://vara.e-sim.org/myParty.html';
+	$partyStep = curlRequest($ch, $partyUrl, [
+		CURLOPT_POST => false,
+		CURLOPT_HTTPGET => true,
+		CURLOPT_HTTPHEADER => $headers,
+	]);
+
+	$partyBody = (string) ($partyStep['body'] ?? '');
+	$partyBodyCompact = compactNodeText($partyBody);
+	$partyHttpOk = $partyStep['errno'] === 0
+		&& (int) ($partyStep['statusCode'] ?? 0) >= 200
+		&& (int) ($partyStep['statusCode'] ?? 0) < 400;
+	$partyNeedsEmailConfirmation = stripos($partyBody, 'You need to confirm your email to join a political party') !== false;
+
+	$partyStatusCheckResult = [
+		'attempted' => true,
+		'saved' => $partyHttpOk,
+		'reason' => !$partyHttpOk
+			? ((int) ($partyStep['errno'] ?? 0) !== 0 ? 'party-status-request-error' : 'party-status-http-error')
+			: ($partyNeedsEmailConfirmation ? 'party-email-confirmation-required' : 'party-status-checked'),
+		'httpStatus' => (int) ($partyStep['statusCode'] ?? 0),
+		'url' => (string) ($partyStep['effectiveUrl'] ?: $partyUrl),
+		'needsEmailConfirmation' => $partyNeedsEmailConfirmation,
+		'responseSnippet' => trim(substr($partyBodyCompact, 0, 260)),
+		'error' => (string) ($partyStep['error'] ?? ''),
+	];
 }
 
 if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? ''))) {
@@ -2879,6 +2920,14 @@ $_SESSION['curl_last_login'] = [
 		'httpStatus' => (int) ($confirmMailCodeResult['httpStatus'] ?? 0),
 		'url' => (string) ($confirmMailCodeResult['url'] ?? ''),
 		'citizenId' => (string) ($confirmMailCodeResult['citizenId'] ?? ''),
+	],
+	'party_status_check_result' => [
+		'attempted' => (bool) ($partyStatusCheckResult['attempted'] ?? false),
+		'saved' => (bool) ($partyStatusCheckResult['saved'] ?? false),
+		'reason' => (string) ($partyStatusCheckResult['reason'] ?? ''),
+		'httpStatus' => (int) ($partyStatusCheckResult['httpStatus'] ?? 0),
+		'url' => (string) ($partyStatusCheckResult['url'] ?? ''),
+		'needsEmailConfirmation' => (bool) ($partyStatusCheckResult['needsEmailConfirmation'] ?? false),
 	],
 	'storage_money_result' => [
 		'attempted' => (bool) ($storageMoneyResult['attempted'] ?? false),
@@ -8694,6 +8743,12 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			<span class="section-meta">GET: https://vara.e-sim.org/resendConfirmationMail.html</span>
 		</form>
 
+		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+			<input type="hidden" name="action" value="party-status-check">
+			<button type="submit" class="train-button">Validar estado de partido</button>
+			<span class="section-meta">GET: https://vara.e-sim.org/myParty.html</span>
+		</form>
+
 		<?php $confirmCodeInputValue = trim((string) ($_POST['confirm_mail_code'] ?? '')); ?>
 		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
 			<input type="hidden" name="action" value="confirm-mail-code">
@@ -8739,6 +8794,19 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			</p>
 			<?php if (!empty($confirmMailCodeResult['responseSnippet'])): ?>
 				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $confirmMailCodeResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+		<?php endif; ?>
+
+		<?php if (!empty($partyStatusCheckResult['attempted'])): ?>
+			<p class="<?= !empty($partyStatusCheckResult['needsEmailConfirmation']) ? 'warn' : (!empty($partyStatusCheckResult['saved']) ? 'ok' : 'warn') ?>" style="margin:8px 0 0;">
+				Estado partido: <?= htmlspecialchars((string) ($partyStatusCheckResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= !empty($partyStatusCheckResult['needsEmailConfirmation']) ? ' | Mensaje detectado: You need to confirm your email to join a political party' : '' ?>
+				<?= !empty($partyStatusCheckResult['url']) ? ' | URL ' . htmlspecialchars((string) $partyStatusCheckResult['url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= isset($partyStatusCheckResult['httpStatus']) ? ' | HTTP ' . (int) $partyStatusCheckResult['httpStatus'] : '' ?>
+				<?= !empty($partyStatusCheckResult['error']) ? ' | Error cURL: ' . htmlspecialchars((string) $partyStatusCheckResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+			<?php if (!empty($partyStatusCheckResult['responseSnippet'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $partyStatusCheckResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
 			<?php endif; ?>
 		<?php endif; ?>
 	</div>
