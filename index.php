@@ -284,6 +284,10 @@ $regionsCatalogAnalyzeCountryRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') =
 	&& (string) ($_POST['action'] ?? '') === 'regions-catalog-analyze-country';
 $notificationsRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'notifications-load';
+$dailiesLoadRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+	&& (string) ($_POST['action'] ?? '') === 'dailies-load';
+$dailiesClaimRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+	&& (string) ($_POST['action'] ?? '') === 'dailies-claim';
 $productMarketRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'product-market-load';
 $productMarketOffersRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
@@ -504,6 +508,30 @@ $notificationsResult = [
 	'bodyLength' => 0,
 	'items' => [],
 	'itemsCount' => 0,
+	'error' => '',
+];
+$dailiesUrl = 'https://vara.e-sim.org/missionCenter/dailies';
+$dailiesResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => $dailiesUrl,
+	'bodyLength' => 0,
+	'items' => [],
+	'itemsCount' => 0,
+	'claimableCount' => 0,
+	'error' => '',
+];
+$dailiesClaimResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => '',
+	'claimUrl' => '',
+	'dailyId' => '',
+	'responseSnippet' => '',
 	'error' => '',
 ];
 $storageMoneyUrl = 'https://vara.e-sim.org/storage.html?storageType=MONEY';
@@ -1233,6 +1261,148 @@ if ($fatalError === '' && $notificationsRequested) {
 		'items' => $notificationsItems,
 		'itemsCount' => count($notificationsItems),
 		'error' => (string) ($notificationsStep['error'] ?? ''),
+	];
+}
+
+if ($fatalError === '' && ($dailiesLoadRequested || $dailiesClaimRequested)) {
+	$dailiesStep = curlRequest($ch, $dailiesUrl, [
+		CURLOPT_POST => false,
+		CURLOPT_HTTPGET => true,
+		CURLOPT_HTTPHEADER => $headers,
+	]);
+
+	$dailiesBody = (string) ($dailiesStep['body'] ?? '');
+	$dailiesBodyLength = strlen($dailiesBody);
+	$dailiesOk = $dailiesStep['errno'] === 0
+		&& (int) ($dailiesStep['statusCode'] ?? 0) >= 200
+		&& (int) ($dailiesStep['statusCode'] ?? 0) < 400
+		&& trim($dailiesBody) !== '';
+	$dailiesItems = $dailiesOk
+		? extractDailiesFromHtml($dailiesBody, (string) ($dailiesStep['effectiveUrl'] ?: $dailiesUrl))
+		: [];
+	$claimableCount = 0;
+	foreach ($dailiesItems as $dailiesItem) {
+		if (!empty($dailiesItem['isClaimable'])) {
+			$claimableCount++;
+		}
+	}
+
+	$dailiesResult = [
+		'attempted' => true,
+		'saved' => $dailiesOk,
+		'reason' => $dailiesOk
+			? (count($dailiesItems) > 0 ? 'dailies-loaded' : 'dailies-empty')
+			: ($dailiesStep['errno'] !== 0 ? 'dailies-request-error' : 'dailies-http-error'),
+		'httpStatus' => (int) ($dailiesStep['statusCode'] ?? 0),
+		'url' => (string) ($dailiesStep['effectiveUrl'] ?: $dailiesUrl),
+		'bodyLength' => $dailiesBodyLength,
+		'items' => $dailiesItems,
+		'itemsCount' => count($dailiesItems),
+		'claimableCount' => $claimableCount,
+		'error' => (string) ($dailiesStep['error'] ?? ''),
+	];
+}
+
+if ($fatalError === '' && $dailiesClaimRequested) {
+	$postedDailyId = preg_replace('/\D+/', '', trim((string) ($_POST['daily_id'] ?? '')));
+	$postedClaimUrl = trim((string) ($_POST['daily_claim_url'] ?? ''));
+	$claimAllowed = false;
+
+	if ($postedDailyId === '' && is_array($dailiesResult['items'] ?? null)) {
+		foreach ((array) ($dailiesResult['items'] ?? []) as $dailyItem) {
+			if (!empty($dailyItem['isClaimable'])) {
+				$postedDailyId = preg_replace('/\D+/', '', trim((string) ($dailyItem['dailyId'] ?? '')));
+				if ($postedClaimUrl === '') {
+					$postedClaimUrl = trim((string) ($dailyItem['claimUrl'] ?? ''));
+				}
+				if ($postedDailyId !== '' || !empty($dailyItem['isChest'])) {
+					$claimAllowed = true;
+					break;
+				}
+			}
+		}
+	}
+
+	if (!$claimAllowed && is_array($dailiesResult['items'] ?? null)) {
+		foreach ((array) ($dailiesResult['items'] ?? []) as $dailyItem) {
+			if (empty($dailyItem['isClaimable'])) {
+				continue;
+			}
+
+			$itemDailyId = preg_replace('/\D+/', '', trim((string) ($dailyItem['dailyId'] ?? '')));
+			if ($postedDailyId !== '' && $itemDailyId === $postedDailyId) {
+				$claimAllowed = true;
+				if ($postedClaimUrl === '') {
+					$postedClaimUrl = trim((string) ($dailyItem['claimUrl'] ?? ''));
+				}
+				break;
+			}
+
+			if ($postedDailyId === '' && !empty($dailyItem['isChest'])) {
+				$claimAllowed = true;
+				if ($postedClaimUrl === '') {
+					$postedClaimUrl = trim((string) ($dailyItem['claimUrl'] ?? ''));
+				}
+				break;
+			}
+		}
+	}
+
+	if ($claimAllowed) {
+		$dailiesClaimResult = submitDailyMissionClaim(
+			$ch,
+			trim((string) ($dailiesResult['url'] ?? $dailiesUrl)),
+			$headers,
+			$postedClaimUrl,
+			$postedDailyId
+		);
+	} else {
+		$dailiesClaimResult = [
+			'attempted' => true,
+			'saved' => false,
+			'reason' => 'dailies-claim-button-not-available',
+			'httpStatus' => 0,
+			'url' => '',
+			'claimUrl' => $postedClaimUrl,
+			'dailyId' => $postedDailyId,
+			'responseSnippet' => '',
+			'error' => '',
+		];
+	}
+
+	$dailiesRefreshStep = curlRequest($ch, $dailiesUrl, [
+		CURLOPT_POST => false,
+		CURLOPT_HTTPGET => true,
+		CURLOPT_HTTPHEADER => $headers,
+	]);
+	$dailiesRefreshBody = (string) ($dailiesRefreshStep['body'] ?? '');
+	$dailiesRefreshOk = $dailiesRefreshStep['errno'] === 0
+		&& (int) ($dailiesRefreshStep['statusCode'] ?? 0) >= 200
+		&& (int) ($dailiesRefreshStep['statusCode'] ?? 0) < 400
+		&& trim($dailiesRefreshBody) !== '';
+	$dailiesRefreshItems = $dailiesRefreshOk
+		? extractDailiesFromHtml($dailiesRefreshBody, (string) ($dailiesRefreshStep['effectiveUrl'] ?: $dailiesUrl))
+		: (array) ($dailiesResult['items'] ?? []);
+	$dailiesRefreshClaimableCount = 0;
+	foreach ($dailiesRefreshItems as $dailiesRefreshItem) {
+		if (!empty($dailiesRefreshItem['isClaimable'])) {
+			$dailiesRefreshClaimableCount++;
+		}
+	}
+
+	$dailiesResult = [
+		'attempted' => true,
+		'saved' => $dailiesRefreshOk,
+		'reason' => $dailiesRefreshOk
+			? (count($dailiesRefreshItems) > 0 ? 'dailies-loaded' : 'dailies-empty')
+			: ($dailiesRefreshStep['errno'] !== 0 ? 'dailies-request-error' : 'dailies-http-error'),
+		'httpStatus' => (int) ($dailiesRefreshStep['statusCode'] ?? 0),
+		'url' => (string) ($dailiesRefreshStep['effectiveUrl'] ?: $dailiesUrl),
+		'bodyLength' => strlen($dailiesRefreshBody),
+		'items' => $dailiesRefreshItems,
+		'itemsCount' => count($dailiesRefreshItems),
+		'claimableCount' => $dailiesRefreshClaimableCount,
+		'error' => (string) ($dailiesRefreshStep['error'] ?? ''),
 	];
 }
 
@@ -2443,6 +2613,25 @@ $_SESSION['curl_last_login'] = [
 		'url' => (string) ($notificationsResult['url'] ?? ''),
 		'bodyLength' => (int) ($notificationsResult['bodyLength'] ?? 0),
 		'itemsCount' => is_array($notificationsResult['items'] ?? null) ? count($notificationsResult['items']) : 0,
+	],
+	'dailies_result' => [
+		'attempted' => (bool) ($dailiesResult['attempted'] ?? false),
+		'saved' => (bool) ($dailiesResult['saved'] ?? false),
+		'reason' => (string) ($dailiesResult['reason'] ?? ''),
+		'httpStatus' => (int) ($dailiesResult['httpStatus'] ?? 0),
+		'url' => (string) ($dailiesResult['url'] ?? ''),
+		'bodyLength' => (int) ($dailiesResult['bodyLength'] ?? 0),
+		'itemsCount' => is_array($dailiesResult['items'] ?? null) ? count($dailiesResult['items']) : 0,
+		'claimableCount' => (int) ($dailiesResult['claimableCount'] ?? 0),
+	],
+	'dailies_claim_result' => [
+		'attempted' => (bool) ($dailiesClaimResult['attempted'] ?? false),
+		'saved' => (bool) ($dailiesClaimResult['saved'] ?? false),
+		'reason' => (string) ($dailiesClaimResult['reason'] ?? ''),
+		'httpStatus' => (int) ($dailiesClaimResult['httpStatus'] ?? 0),
+		'url' => (string) ($dailiesClaimResult['url'] ?? ''),
+		'claimUrl' => (string) ($dailiesClaimResult['claimUrl'] ?? ''),
+		'dailyId' => (string) ($dailiesClaimResult['dailyId'] ?? ''),
 	],
 	'storage_money_result' => [
 		'attempted' => (bool) ($storageMoneyResult['attempted'] ?? false),
@@ -4967,6 +5156,469 @@ function extractNotificationsListFromHtml(string $html, string $baseUrl): array
 	return $items;
 }
 
+function extractDailiesFromHtml(string $html, string $baseUrl): array
+{
+	if (trim($html) === '') {
+		return [];
+	}
+
+	$itemsFromJson = extractDailiesFromJsonPayload($html, $baseUrl);
+	if (!empty($itemsFromJson)) {
+		return $itemsFromJson;
+	}
+
+	$dom = new DOMDocument();
+	libxml_use_internal_errors(true);
+	$dom->loadHTML($html);
+	libxml_clear_errors();
+	$xpath = new DOMXPath($dom);
+
+	$normalizedBaseUrl = $baseUrl !== '' ? $baseUrl : 'https://vara.e-sim.org/missionCenter/dailies';
+	$nodes = $xpath->query('//div[starts-with(@id,"daily_") and contains(concat(" ", normalize-space(@class), " "), " daily ")]');
+	$items = [];
+	$seen = [];
+
+	if (!$nodes) {
+		return $items;
+	}
+
+	foreach ($nodes as $dailyNode) {
+		if (!($dailyNode instanceof DOMElement)) {
+			continue;
+		}
+
+		$dailyElementId = trim((string) $dailyNode->getAttribute('id'));
+		$dailyId = '';
+		if (preg_match('/daily_(\d+)/i', $dailyElementId, $dailyMatch) === 1) {
+			$dailyId = trim((string) ($dailyMatch[1] ?? ''));
+		}
+
+		$dailyClass = trim((string) $dailyNode->getAttribute('class'));
+		$descriptionNode = $xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " dailyDescription ")][1]', $dailyNode)->item(0);
+		$description = $descriptionNode instanceof DOMElement
+			? compactNodeText((string) $descriptionNode->textContent)
+			: '';
+
+		$progressTextNode = $xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " dailyProgressBarText ")][1]', $dailyNode)->item(0);
+		$progressText = $progressTextNode instanceof DOMElement
+			? compactNodeText((string) $progressTextNode->textContent)
+			: '';
+
+		$progressPercent = '';
+		$progressNode = $xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " dailyProgress ")][1]', $dailyNode)->item(0);
+		if ($progressNode instanceof DOMElement) {
+			$style = trim((string) $progressNode->getAttribute('style'));
+			if (preg_match('/width\s*:\s*([0-9]+(?:\.[0-9]+)?)%/i', $style, $progressMatch) === 1) {
+				$progressPercent = trim((string) ($progressMatch[1] ?? ''));
+			}
+		}
+
+		$buttonNode = $xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " dailyButton ")]//*[self::button or self::a or self::input][1]', $dailyNode)->item(0);
+		$buttonText = '';
+		$claimUrl = '';
+		if ($buttonNode instanceof DOMElement) {
+			$buttonText = compactNodeText((string) ($buttonNode->textContent !== '' ? $buttonNode->textContent : $buttonNode->getAttribute('value')));
+			$claimUrl = detectActionUrlFromElement($xpath, $buttonNode, $normalizedBaseUrl);
+		}
+
+		$buttonTextLower = strtolower($buttonText);
+		$looksClaimButton = $buttonTextLower !== ''
+			&& (str_contains($buttonTextLower, 'claim') || str_contains($buttonTextLower, 'reclamar'));
+		$isClaimable = hasClassToken($dailyNode, 'unclaimed') || $looksClaimButton;
+		$isCompleted = $isClaimable;
+
+		$rewards = [];
+		$rewardNodes = $xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " dailyMissionRewardContainer ")]', $dailyNode);
+		if ($rewardNodes) {
+			foreach ($rewardNodes as $rewardNode) {
+				if (!($rewardNode instanceof DOMElement)) {
+					continue;
+				}
+
+				$amountNode = $xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " dailyMissionRewardAmount ")][1]', $rewardNode)->item(0);
+				$rewardAmount = $amountNode instanceof DOMElement ? compactNodeText((string) $amountNode->textContent) : '';
+
+				$typeNode = $xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " dailyMissionReward ")][1]', $rewardNode)->item(0);
+				$rewardType = '';
+				if ($typeNode instanceof DOMElement) {
+					$rewardType = compactNodeText((string) $typeNode->getAttribute('data-hover'));
+					if ($rewardType === '') {
+						$rewardType = compactNodeText((string) $typeNode->getAttribute('class'));
+					}
+				}
+
+				if ($rewardType === '' && $rewardAmount === '') {
+					continue;
+				}
+
+				$rewards[] = [
+					'type' => $rewardType,
+					'amount' => $rewardAmount,
+				];
+			}
+		}
+
+		$itemKey = md5($dailyElementId . '|' . $description . '|' . $progressText);
+		if (isset($seen[$itemKey])) {
+			continue;
+		}
+		$seen[$itemKey] = true;
+
+		$items[] = [
+			'id' => $dailyElementId,
+			'dailyId' => $dailyId,
+			'description' => $description,
+			'progressText' => $progressText,
+			'progressPercent' => $progressPercent,
+			'status' => $isClaimable ? 'UNCLAIMED' : 'ACTIVE',
+			'isChest' => false,
+			'isCompleted' => $isCompleted,
+			'buttonText' => $buttonText,
+			'isClaimable' => $isClaimable,
+			'claimUrl' => $claimUrl,
+			'className' => $dailyClass,
+			'rewards' => $rewards,
+		];
+
+		if (count($items) >= 80) {
+			break;
+		}
+	}
+
+	return $items;
+}
+
+function extractDailiesFromJsonPayload(string $html, string $baseUrl): array
+{
+	$normalizedBaseUrl = $baseUrl !== '' ? $baseUrl : 'https://vara.e-sim.org/missionCenter/dailies';
+	$defaultClaimUrl = resolveUrl($normalizedBaseUrl, 'missionCenter/dailies');
+	$items = [];
+
+	$dailiesKeyPos = strpos($html, '"dailies"');
+	if ($dailiesKeyPos === false) {
+		return [];
+	}
+
+	$dailiesArrayStart = strpos($html, '[', $dailiesKeyPos);
+	if (!is_int($dailiesArrayStart) || $dailiesArrayStart < 0) {
+		return [];
+	}
+
+	$dailiesJson = extractBalancedJsonFragment($html, $dailiesArrayStart, '[', ']');
+	if ($dailiesJson === '') {
+		return [];
+	}
+
+	$dailiesData = json_decode($dailiesJson, true);
+	if (!is_array($dailiesData)) {
+		return [];
+	}
+
+	$index = 0;
+	foreach ($dailiesData as $dailyRaw) {
+		if (!is_array($dailyRaw)) {
+			continue;
+		}
+
+		$dailyId = preg_replace('/\D+/', '', (string) ($dailyRaw['id'] ?? ''));
+		$description = compactNodeText((string) ($dailyRaw['description'] ?? ''));
+		$progress = (int) ($dailyRaw['progress'] ?? 0);
+		$maxProgress = (int) ($dailyRaw['max_progress'] ?? 0);
+		$status = strtoupper(compactNodeText((string) ($dailyRaw['status'] ?? 'ACTIVE')));
+		if ($status === '') {
+			$status = 'ACTIVE';
+		}
+		$isClaimable = $status === 'UNCLAIMED';
+		$isCompleted = $status === 'FINISHED' || $status === 'UNCLAIMED';
+		$rewards = normalizeDailyRewards(is_array($dailyRaw['rewards'] ?? null) ? (array) $dailyRaw['rewards'] : []);
+		$progressText = $maxProgress > 0 ? ($progress . ' / ' . $maxProgress) : (string) $progress;
+		$progressPercent = $maxProgress > 0 ? (string) round(($progress / max(1, $maxProgress)) * 100, 2) : '';
+
+		$itemId = $dailyId !== '' ? 'daily_' . $dailyId : 'daily_json_' . $index;
+		$items[] = [
+			'id' => $itemId,
+			'dailyId' => $dailyId,
+			'description' => $description !== '' ? $description : ('Mision diaria #' . ($index + 1)),
+			'progressText' => $progressText,
+			'progressPercent' => $progressPercent,
+			'status' => $status,
+			'isChest' => false,
+			'isCompleted' => $isCompleted,
+			'buttonText' => $status === 'UNCLAIMED' ? 'Reclamar' : ($status === 'FINISHED' ? 'Completada' : 'Ir'),
+			'isClaimable' => $isClaimable,
+			'claimUrl' => $defaultClaimUrl,
+			'className' => 'daily-json ' . strtolower($status),
+			'rewards' => $rewards,
+		];
+
+		$index++;
+	}
+
+	$dailyChestKeyPos = strpos($html, '"dailyChest"', $dailiesArrayStart);
+	if ($dailyChestKeyPos !== false) {
+		$dailyChestObjStart = strpos($html, '{', $dailyChestKeyPos);
+		if (is_int($dailyChestObjStart) && $dailyChestObjStart >= 0) {
+			$dailyChestJson = extractBalancedJsonFragment($html, $dailyChestObjStart, '{', '}');
+			if ($dailyChestJson !== '') {
+				$dailyChestData = json_decode($dailyChestJson, true);
+				if (is_array($dailyChestData)) {
+					$chestStatus = strtoupper(compactNodeText((string) ($dailyChestData['status'] ?? 'ACTIVE')));
+					if ($chestStatus === '') {
+						$chestStatus = 'ACTIVE';
+					}
+					$chestRewards = normalizeDailyRewards(is_array($dailyChestData['rewards'] ?? null) ? (array) $dailyChestData['rewards'] : []);
+					$items[] = [
+						'id' => 'daily_chest',
+						'dailyId' => '',
+						'description' => 'Daily chest (cofre diario)',
+						'progressText' => 'Completa las 3 diarias para habilitarlo',
+						'progressPercent' => '',
+						'status' => $chestStatus,
+						'isChest' => true,
+						'isCompleted' => $chestStatus === 'FINISHED' || $chestStatus === 'UNCLAIMED',
+						'buttonText' => $chestStatus === 'UNCLAIMED' ? 'Reclamar cofre' : ($chestStatus === 'FINISHED' ? 'Cofre completado' : 'Bloqueado'),
+						'isClaimable' => $chestStatus === 'UNCLAIMED',
+						'claimUrl' => $defaultClaimUrl,
+						'className' => 'daily-chest-json ' . strtolower($chestStatus),
+						'rewards' => $chestRewards,
+					];
+				}
+			}
+		}
+	}
+
+	return $items;
+}
+
+function normalizeDailyRewards(array $rewardsRaw): array
+{
+	$rewards = [];
+	foreach ($rewardsRaw as $rewardRaw) {
+		if (!is_array($rewardRaw)) {
+			continue;
+		}
+
+		$type = compactNodeText((string) ($rewardRaw['type'] ?? ''));
+		$amount = compactNodeText((string) (($rewardRaw['ammount'] ?? '') !== '' ? $rewardRaw['ammount'] : ($rewardRaw['amount'] ?? '')));
+		if ($type === '' && $amount === '') {
+			continue;
+		}
+
+		$rewards[] = [
+			'type' => $type,
+			'amount' => $amount,
+		];
+	}
+
+	return $rewards;
+}
+
+function extractBalancedJsonFragment(string $source, int $startPos, string $openChar, string $closeChar): string
+{
+	$len = strlen($source);
+	if ($startPos < 0 || $startPos >= $len) {
+		return '';
+	}
+
+	if ((string) ($source[$startPos] ?? '') !== $openChar) {
+		return '';
+	}
+
+	$depth = 0;
+	$inString = false;
+	$stringDelimiter = '';
+	$escaped = false;
+
+	for ($i = $startPos; $i < $len; $i++) {
+		$ch = (string) ($source[$i] ?? '');
+
+		if ($inString) {
+			if ($escaped) {
+				$escaped = false;
+				continue;
+			}
+			if ($ch === '\\') {
+				$escaped = true;
+				continue;
+			}
+			if ($ch === $stringDelimiter) {
+				$inString = false;
+				$stringDelimiter = '';
+			}
+			continue;
+		}
+
+		if ($ch === '"' || $ch === "'") {
+			$inString = true;
+			$stringDelimiter = $ch;
+			continue;
+		}
+
+		if ($ch === $openChar) {
+			$depth++;
+			continue;
+		}
+
+		if ($ch === $closeChar) {
+			$depth--;
+			if ($depth === 0) {
+				return substr($source, $startPos, $i - $startPos + 1);
+			}
+		}
+	}
+
+	return '';
+}
+
+function submitDailyMissionClaim($ch, string $refererUrl, array $defaultHeaders, string $claimUrl, string $dailyId = ''): array
+{
+	$dailyId = preg_replace('/\D+/', '', trim($dailyId));
+	$safeReferer = trim($refererUrl) !== '' ? trim($refererUrl) : 'https://vara.e-sim.org/missionCenter/dailies';
+
+	$result = [
+		'attempted' => true,
+		'saved' => false,
+		'reason' => 'dailies-claim-request-error',
+		'httpStatus' => 0,
+		'url' => '',
+		'claimUrl' => trim($claimUrl),
+		'dailyId' => $dailyId,
+		'responseSnippet' => '',
+		'error' => '',
+	];
+
+	if ($dailyId !== '') {
+		$exactClaimUrl = resolveUrl($safeReferer, 'missionCenter/claimDailyReward?id=' . rawurlencode($dailyId));
+		$exactGetStep = curlRequest($ch, $exactClaimUrl, [
+			CURLOPT_POST => false,
+			CURLOPT_HTTPGET => true,
+			CURLOPT_HTTPHEADER => array_merge($defaultHeaders, [
+				'Referer: ' . $safeReferer,
+				'Accept: application/json, text/plain, */*',
+			]),
+		]);
+
+		$exactBody = (string) ($exactGetStep['body'] ?? '');
+		$exactLower = strtolower($exactBody);
+		$exactHttpOk = $exactGetStep['errno'] === 0
+			&& (int) ($exactGetStep['statusCode'] ?? 0) >= 200
+			&& (int) ($exactGetStep['statusCode'] ?? 0) < 400;
+		$exactSuccess = preg_match('/(dailyrewardtaken|received your daily reward|reward was sent|you received)/i', $exactBody) === 1;
+		$exactAlready = preg_match('/(dailyrewardalreadytaken|already\s+taken|already\s+claimed|reward\s+was\s+already\s+taken)/i', $exactBody) === 1;
+		$exactError = preg_match('/(dailyrewarderror|error\s+occured|forbidden|not\s+logged|captcha|invalid|failed|exception)/i', $exactBody) === 1;
+
+		if ($exactHttpOk && ($exactSuccess || $exactAlready || (!$exactError && trim($exactLower) !== ''))) {
+			return [
+				'attempted' => true,
+				'saved' => true,
+				'reason' => $exactAlready ? 'dailies-reward-already-claimed' : ($exactSuccess ? 'dailies-reward-claimed' : 'dailies-claim-processed'),
+				'httpStatus' => (int) ($exactGetStep['statusCode'] ?? 0),
+				'url' => (string) ($exactGetStep['effectiveUrl'] ?: $exactClaimUrl),
+				'claimUrl' => $exactClaimUrl,
+				'dailyId' => $dailyId,
+				'responseSnippet' => trim(substr(compactNodeText($exactBody), 0, 260)),
+				'error' => (string) ($exactGetStep['error'] ?? ''),
+			];
+		}
+	}
+
+	$candidateUrls = [];
+	if ($dailyId !== '') {
+		$candidateUrls[] = resolveUrl($safeReferer, 'missionCenter/claimDailyReward?id=' . rawurlencode($dailyId));
+	}
+	if (trim($claimUrl) !== '') {
+		$candidateUrls[] = trim($claimUrl);
+	}
+	$candidateUrls[] = resolveUrl($safeReferer, 'missionCenter/dailies');
+	$candidateUrls[] = resolveUrl($safeReferer, 'missionCenter/claimReward');
+	$candidateUrls[] = resolveUrl($safeReferer, 'missionCenter/claimPrize');
+	if ($dailyId !== '') {
+		$candidateUrls[] = resolveUrl($safeReferer, 'missionCenter/dailies?action=claimReward&dailyId=' . rawurlencode($dailyId));
+		$candidateUrls[] = resolveUrl($safeReferer, 'missionCenter/dailies?action=claimPrize&dailyId=' . rawurlencode($dailyId));
+	}
+	$candidateUrls = array_values(array_unique(array_filter($candidateUrls, static function ($url): bool {
+		return is_string($url) && trim($url) !== '';
+	})));
+
+	if (empty($candidateUrls)) {
+		return $result;
+	}
+
+	$payloads = [];
+	if ($dailyId !== '') {
+		$payloads[] = ['dailyId' => $dailyId];
+		$payloads[] = ['id' => $dailyId];
+		$payloads[] = ['missionId' => $dailyId];
+		$payloads[] = ['taskId' => $dailyId];
+		$payloads[] = ['daily_id' => $dailyId];
+		$payloads[] = ['claimReward' => $dailyId];
+		$payloads[] = ['claimPrize' => $dailyId];
+		$payloads[] = ['action' => 'claimReward', 'dailyId' => $dailyId];
+		$payloads[] = ['action' => 'claimPrize', 'dailyId' => $dailyId];
+		$payloads[] = ['action' => 'claim', 'dailyId' => $dailyId];
+	} else {
+		$payloads[] = ['action' => 'claimAll'];
+		$payloads[] = ['claimAll' => '1'];
+	}
+
+	$postHeaders = [
+		'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
+		'Origin: https://vara.e-sim.org',
+		'Referer: ' . $safeReferer,
+		'X-Requested-With: XMLHttpRequest',
+		'Accept: application/json, text/plain, */*',
+	];
+
+	$lastStep = null;
+	foreach ($candidateUrls as $targetUrl) {
+		foreach ($payloads as $payload) {
+			$step = curlRequest($ch, $targetUrl, [
+				CURLOPT_POST => true,
+				CURLOPT_HTTPGET => false,
+				CURLOPT_POSTFIELDS => http_build_query($payload),
+				CURLOPT_HTTPHEADER => array_merge($defaultHeaders, $postHeaders),
+			]);
+			$lastStep = $step;
+
+			$responseBody = (string) ($step['body'] ?? '');
+			$responseLower = strtolower($responseBody);
+			$httpOk = $step['errno'] === 0
+				&& (int) ($step['statusCode'] ?? 0) >= 200
+				&& (int) ($step['statusCode'] ?? 0) < 400;
+			$successText = preg_match('/(dailyrewardtaken|received your daily reward|reward was sent|you received|claim(ed)?\s+success)/i', $responseBody) === 1;
+			$alreadyText = preg_match('/(dailyrewardalreadytaken|already\s+taken|already\s+claimed|reward\s+was\s+already\s+taken)/i', $responseBody) === 1;
+			$errorText = preg_match('/(dailyrewarderror|error\s+occured|forbidden|not\s+logged|captcha|invalid|failed|exception)/i', $responseBody) === 1;
+
+			if ($httpOk && ($successText || $alreadyText || (!$errorText && trim($responseLower) !== ''))) {
+				return [
+					'attempted' => true,
+					'saved' => true,
+					'reason' => $alreadyText ? 'dailies-reward-already-claimed' : ($successText ? 'dailies-reward-claimed' : 'dailies-claim-processed'),
+					'httpStatus' => (int) ($step['statusCode'] ?? 0),
+					'url' => (string) ($step['effectiveUrl'] ?: $targetUrl),
+					'claimUrl' => trim($claimUrl),
+					'dailyId' => $dailyId,
+					'responseSnippet' => trim(substr(compactNodeText($responseBody), 0, 260)),
+					'error' => (string) ($step['error'] ?? ''),
+				];
+			}
+		}
+	}
+
+	if (is_array($lastStep)) {
+		$lastBody = (string) ($lastStep['body'] ?? '');
+		$result['httpStatus'] = (int) ($lastStep['statusCode'] ?? 0);
+		$result['url'] = (string) ($lastStep['effectiveUrl'] ?? '');
+		$result['responseSnippet'] = trim(substr(compactNodeText($lastBody), 0, 260));
+		$result['error'] = (string) ($lastStep['error'] ?? '');
+		$result['reason'] = (int) ($lastStep['errno'] ?? 0) !== 0
+			? 'dailies-claim-request-error'
+			: 'dailies-claim-rejected';
+	}
+
+	return $result;
+}
+
 function extractStorageMoneyAccountsFromHtml(string $html): array
 {
 	if (trim($html) === '') {
@@ -5036,13 +5688,9 @@ function extractStorageMoneyAccountsFromHtml(string $html): array
 		}
 	}
 
-	if (!empty($accounts)) {
-		return $accounts;
-	}
-
 	if (preg_match('/var\s+citizenAccounts\s*=\s*\[(.*?)\];/is', $html, $accountsMatch) === 1) {
 		$accountsBlock = (string) ($accountsMatch[1] ?? '');
-		if (preg_match_all('/\{\s*\'currency\'\s*:\s*\'([^\']+)\'\s*,\s*\'amount\'\s*:\s*\'([^\']+)\'\s*,\s*\'country\'\s*:\s*\'([^\']*)\'\s*\}/i', $accountsBlock, $rows, PREG_SET_ORDER)) {
+		if (preg_match_all('/\{\s*[\'\"]currency[\'\"]\s*:\s*[\'\"]([^\'\"]+)[\'\"]\s*,\s*[\'\"]amount[\'\"]\s*:\s*[\'\"]([^\'\"]+)[\'\"]\s*,\s*[\'\"]country[\'\"]\s*:\s*[\'\"]([^\'\"]*)[\'\"]\s*\}/i', $accountsBlock, $rows, PREG_SET_ORDER)) {
 			foreach ($rows as $row) {
 				$currencyId = trim((string) ($row[1] ?? ''));
 				$amount = trim((string) ($row[2] ?? ''));
@@ -5051,6 +5699,12 @@ function extractStorageMoneyAccountsFromHtml(string $html): array
 					continue;
 				}
 				$currencyCode = $currencyId === '0' ? 'Gold' : ('ID:' . $currencyId);
+				$key = strtolower($currencyCode . '|' . $country);
+				if (isset($seen[$key])) {
+					continue;
+				}
+
+				$seen[$key] = true;
 				$accounts[] = [
 					'amount' => $amount,
 					'currency' => $currencyCode,
@@ -7523,8 +8177,14 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 <body>
 	<div class="page-header">
 		<div class="header-float-right">
-			<p class="header-float-row"><span class="header-float-label">Day:</span><span class="header-float-value"><?= htmlspecialchars((string) ($playerInfo['day'] ?: '-'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span></p>
-			<p class="header-float-row"><span class="header-float-label">Location:</span><span class="header-float-value"><?= htmlspecialchars((string) ($playerInfo['location'] ?: '-'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span></p>
+			<div class="header-float-row" style="display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;">
+				<span><span class="header-float-label">Day:</span><span class="header-float-value"><?= htmlspecialchars((string) ($playerInfo['day'] ?: '-'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span></span>
+				<span><span class="header-float-label">Location:</span><span class="header-float-value"><?= htmlspecialchars((string) ($playerInfo['location'] ?: '-'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span></span>
+				<form method="post" style="display:inline-flex;align-items:center;margin:0;">
+					<input type="hidden" name="action" value="logout-now">
+					<button type="submit" class="train-button" style="border-color:#d2a1a1;color:#7d1e1e;padding:4px 8px;font-size:12px;">Cerrar sesion</button>
+				</form>
+			</div>
 		</div>
 		<h1><?= htmlspecialchars($username, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
 	</div>
@@ -7622,11 +8282,6 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 	<div class="player-panel">
 		<div class="player-toolbar">
 			<a href="<?= htmlspecialchars($reloadPath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" class="train-button" style="display:inline-flex;align-items:center;text-decoration:none;">Recargar</a>
-			<a href="npcs.php" class="train-button" style="display:inline-flex;align-items:center;text-decoration:none;">Regiones NPC</a>
-			<form method="post" style="display:inline-flex;align-items:center;margin:0;">
-				<input type="hidden" name="action" value="logout-now">
-				<button type="submit" class="train-button" style="border-color:#d2a1a1;color:#7d1e1e;">Cerrar sesion</button>
-			</form>
 			<div style="display:flex; gap:8px;">
 				<form class="train-form js-async-action" method="post" style="display:flex;align-items:center;gap:6px;">
 					<input type="hidden" name="action" value="eat-now">
@@ -8001,6 +8656,92 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			</p>
 			<?php if (!empty($banditBlueRunResult['rewardSnippet'])): ?>
 				<p class="section-meta" style="margin:6px 0 0;">Respuesta reward: <?= htmlspecialchars((string) $banditBlueRunResult['rewardSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+		<?php endif; ?>
+	</div>
+
+	<div class="section-panel">
+		<h2 class="section-title">Misiones diarias</h2>
+		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+			<input type="hidden" name="action" value="dailies-load">
+			<button type="submit" class="train-button">Ver misiones diarias</button>
+			<span class="section-meta" style="margin:0;">Endpoint: <?= htmlspecialchars($dailiesUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+		</form>
+
+		<?php if (!empty($dailiesResult['attempted'])): ?>
+			<p class="section-meta" style="margin:8px 0 0;">
+				Fuente: <?= htmlspecialchars((string) ($dailiesResult['url'] ?? $dailiesUrl), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= isset($dailiesResult['httpStatus']) ? ' | HTTP ' . (int) $dailiesResult['httpStatus'] : '' ?>
+				<?= isset($dailiesResult['bodyLength']) ? ' | HTML ' . number_format((int) $dailiesResult['bodyLength']) . ' bytes' : '' ?>
+				<?= isset($dailiesResult['itemsCount']) ? ' | Misiones ' . (int) $dailiesResult['itemsCount'] : '' ?>
+				<?= isset($dailiesResult['claimableCount']) ? ' | Reclamar ' . (int) $dailiesResult['claimableCount'] : '' ?>
+			</p>
+
+			<?php if (empty($dailiesResult['saved'])): ?>
+				<p class="warn" style="margin:8px 0 0;">No se pudieron cargar las misiones diarias (<?= htmlspecialchars((string) ($dailiesResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>).</p>
+			<?php elseif (empty($dailiesResult['items']) || !is_array($dailiesResult['items'])): ?>
+				<p class="warn" style="margin:8px 0 0;">No se detectaron misiones diarias para mostrar.</p>
+			<?php else: ?>
+				<div style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;">
+					<?php foreach ((array) ($dailiesResult['items'] ?? []) as $dailyItem): ?>
+						<?php
+						$dailyId = trim((string) ($dailyItem['dailyId'] ?? ''));
+						$dailyDescription = trim((string) ($dailyItem['description'] ?? ''));
+						$dailyProgressText = trim((string) ($dailyItem['progressText'] ?? ''));
+						$dailyProgressPercent = trim((string) ($dailyItem['progressPercent'] ?? ''));
+						$dailyStatus = strtoupper(trim((string) ($dailyItem['status'] ?? '')));
+						$dailyIsChest = !empty($dailyItem['isChest']);
+						$dailyCompleted = !empty($dailyItem['isCompleted']);
+						$dailyButtonText = trim((string) ($dailyItem['buttonText'] ?? ''));
+						$dailyClaimable = !empty($dailyItem['isClaimable']);
+						$dailyClaimUrl = trim((string) ($dailyItem['claimUrl'] ?? ''));
+						$dailyRewards = is_array($dailyItem['rewards'] ?? null) ? (array) $dailyItem['rewards'] : [];
+						?>
+						<div style="background:#fbfcff;border:1px solid <?= $dailyClaimable ? '#c4e8cd' : '#d7e0ee' ?>;border-radius:10px;padding:10px;">
+							<p style="margin:0 0 6px;font-weight:700;color:#162742;"><?= htmlspecialchars($dailyDescription !== '' ? $dailyDescription : 'Mision sin descripcion', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?><?= $dailyIsChest ? ' <span class="section-meta" style="font-weight:600;">(CHEST)</span>' : '' ?></p>
+							<p class="section-meta" style="margin:0;">ID <?= htmlspecialchars($dailyId !== '' ? $dailyId : '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?><?= $dailyProgressText !== '' ? ' | Progreso ' . htmlspecialchars($dailyProgressText, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?><?= $dailyProgressPercent !== '' ? ' | ' . htmlspecialchars($dailyProgressPercent, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '%' : '' ?><?= $dailyStatus !== '' ? ' | Status ' . htmlspecialchars($dailyStatus, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?><?= $dailyCompleted ? ' | Completada' : '' ?></p>
+							<?php if (!empty($dailyRewards)): ?>
+								<p class="section-meta" style="margin:6px 0 0;">Premios:
+									<?php
+									$dailyRewardTokens = [];
+									foreach ($dailyRewards as $dailyReward) {
+										$rewardType = trim((string) ($dailyReward['type'] ?? ''));
+										$rewardAmount = trim((string) ($dailyReward['amount'] ?? ''));
+										$dailyRewardTokens[] = trim($rewardType . ' ' . $rewardAmount);
+									}
+									echo htmlspecialchars(implode(' | ', array_filter($dailyRewardTokens)), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+									?>
+								</p>
+							<?php endif; ?>
+							<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+								<?php if ($dailyClaimable): ?>
+									<form method="post" style="margin:0;display:inline-flex;align-items:center;">
+										<input type="hidden" name="action" value="dailies-claim">
+										<input type="hidden" name="daily_id" value="<?= htmlspecialchars($dailyId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+										<input type="hidden" name="daily_claim_url" value="<?= htmlspecialchars($dailyClaimUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+										<button type="submit" class="train-button" style="background:#0d8f49;border-color:#0b7a3e;">Reclamar</button>
+									</form>
+								<?php else: ?>
+									<span class="section-meta" style="margin:0;"><?= htmlspecialchars($dailyButtonText !== '' ? $dailyButtonText : 'Sin boton de reclamo', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?><?= $dailyStatus === 'ACTIVE' ? ' (debes completarla)' : '' ?><?= $dailyStatus === 'FINISHED' ? ' (ya completada)' : '' ?></span>
+								<?php endif; ?>
+							</div>
+						</div>
+					<?php endforeach; ?>
+				</div>
+			<?php endif; ?>
+		<?php else: ?>
+			<p class="warn" style="margin:8px 0 0;">Presiona el boton para consultar misiones diarias con la sesion cURL activa.</p>
+		<?php endif; ?>
+
+		<?php if (!empty($dailiesClaimResult['attempted'])): ?>
+			<p class="<?= !empty($dailiesClaimResult['saved']) ? 'ok' : 'warn' ?>" style="margin:8px 0 0;">
+				Resultado reclamar: <?= htmlspecialchars((string) ($dailiesClaimResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= isset($dailiesClaimResult['dailyId']) && (string) $dailiesClaimResult['dailyId'] !== '' ? ' | Daily ID ' . htmlspecialchars((string) $dailiesClaimResult['dailyId'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= isset($dailiesClaimResult['httpStatus']) ? ' | HTTP ' . (int) $dailiesClaimResult['httpStatus'] : '' ?>
+				<?= !empty($dailiesClaimResult['error']) ? ' | Error cURL: ' . htmlspecialchars((string) $dailiesClaimResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+			<?php if (!empty($dailiesClaimResult['responseSnippet'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $dailiesClaimResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
 			<?php endif; ?>
 		<?php endif; ?>
 	</div>
