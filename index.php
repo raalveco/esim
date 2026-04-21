@@ -292,6 +292,8 @@ $changeEmailRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'change-email';
 $resendConfirmationMailRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'resend-confirmation-mail';
+$confirmMailCodeRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+	&& (string) ($_POST['action'] ?? '') === 'confirm-mail-code';
 $productMarketRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'product-market-load';
 $productMarketOffersRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
@@ -563,6 +565,17 @@ $resendConfirmationMailResult = [
 	'reason' => 'not-attempted',
 	'httpStatus' => 0,
 	'url' => 'https://vara.e-sim.org/resendConfirmationMail.html',
+	'responseSnippet' => '',
+	'error' => '',
+];
+$confirmMailCodeResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => '',
+	'citizenId' => '',
+	'stamp' => '',
 	'responseSnippet' => '',
 	'error' => '',
 ];
@@ -1518,6 +1531,67 @@ if ($fatalError === '' && $resendConfirmationMailRequested) {
 		'responseSnippet' => trim(substr(compactNodeText($resendBody), 0, 260)),
 		'error' => (string) ($resendStep['error'] ?? ''),
 	];
+}
+
+if ($fatalError === '' && $confirmMailCodeRequested) {
+	$postedStamp = trim((string) ($_POST['confirm_mail_code'] ?? ''));
+	$postedCitizenId = preg_replace('/\D+/', '', trim((string) ($_POST['confirm_citizen_id'] ?? '')));
+	$fallbackCitizenId = preg_replace('/\D+/', '', trim((string) $userId));
+	if ($postedCitizenId === '') {
+		$previewInfoForConfirm = extractLoggedPlayerInfo((string) ($step3['body'] ?? ''));
+		$previewCitizenId = preg_replace('/\D+/', '', trim((string) ($previewInfoForConfirm['citizenId'] ?? '')));
+		$postedCitizenId = $previewCitizenId !== '' ? $previewCitizenId : $fallbackCitizenId;
+	}
+	if ($postedCitizenId === '') {
+		$postedCitizenId = '194888';
+	}
+
+	$confirmMailCodeResult = [
+		'attempted' => true,
+		'saved' => false,
+		'reason' => 'confirm-mail-invalid-stamp',
+		'httpStatus' => 0,
+		'url' => '',
+		'citizenId' => $postedCitizenId,
+		'stamp' => $postedStamp,
+		'responseSnippet' => '',
+		'error' => '',
+	];
+
+	if ($postedStamp !== '') {
+		$confirmMailUrl = 'https://vara.e-sim.org/confirmMail.html?' . http_build_query([
+			'citizenId' => $postedCitizenId,
+			'stamp' => $postedStamp,
+		]);
+
+		$confirmStep = curlRequest($ch, $confirmMailUrl, [
+			CURLOPT_POST => false,
+			CURLOPT_HTTPGET => true,
+			CURLOPT_HTTPHEADER => $headers,
+		]);
+
+		$confirmBody = (string) ($confirmStep['body'] ?? '');
+		$confirmBodyLower = strtolower($confirmBody);
+		$confirmHttpOk = $confirmStep['errno'] === 0
+			&& (int) ($confirmStep['statusCode'] ?? 0) >= 200
+			&& (int) ($confirmStep['statusCode'] ?? 0) < 400;
+		$confirmLooksSuccess = preg_match('/(mail\s+confirmed|email\s+confirmed|confirmation\s+successful|success|already\s+confirmed)/i', $confirmBody) === 1;
+		$confirmLooksError = preg_match('/(error|invalid|forbidden|failed|not\s+logged|denied|expired|wrong\s+code|incorrect)/i', $confirmBody) === 1;
+
+		$confirmMailCodeResult = [
+			'attempted' => true,
+			'saved' => $confirmHttpOk && ($confirmLooksSuccess || (!$confirmLooksError && trim($confirmBodyLower) !== '')),
+			'reason' => !$confirmHttpOk
+				? ((int) ($confirmStep['errno'] ?? 0) !== 0 ? 'confirm-mail-request-error' : 'confirm-mail-http-error')
+				: ($confirmLooksSuccess ? 'confirm-mail-confirmed' : ($confirmLooksError ? 'confirm-mail-rejected' : 'confirm-mail-processed')),
+			'httpStatus' => (int) ($confirmStep['statusCode'] ?? 0),
+			'url' => (string) ($confirmStep['effectiveUrl'] ?: $confirmMailUrl),
+			'citizenId' => $postedCitizenId,
+			'stamp' => $postedStamp,
+			'responseSnippet' => trim(substr(compactNodeText($confirmBody), 0, 260)),
+			'error' => (string) ($confirmStep['error'] ?? ''),
+		];
+	}
 }
 
 if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? ''))) {
@@ -2797,6 +2871,14 @@ $_SESSION['curl_last_login'] = [
 		'reason' => (string) ($resendConfirmationMailResult['reason'] ?? ''),
 		'httpStatus' => (int) ($resendConfirmationMailResult['httpStatus'] ?? 0),
 		'url' => (string) ($resendConfirmationMailResult['url'] ?? ''),
+	],
+	'confirm_mail_code_result' => [
+		'attempted' => (bool) ($confirmMailCodeResult['attempted'] ?? false),
+		'saved' => (bool) ($confirmMailCodeResult['saved'] ?? false),
+		'reason' => (string) ($confirmMailCodeResult['reason'] ?? ''),
+		'httpStatus' => (int) ($confirmMailCodeResult['httpStatus'] ?? 0),
+		'url' => (string) ($confirmMailCodeResult['url'] ?? ''),
+		'citizenId' => (string) ($confirmMailCodeResult['citizenId'] ?? ''),
 	],
 	'storage_money_result' => [
 		'attempted' => (bool) ($storageMoneyResult['attempted'] ?? false),
@@ -8612,6 +8694,16 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			<span class="section-meta">GET: https://vara.e-sim.org/resendConfirmationMail.html</span>
 		</form>
 
+		<?php $confirmCodeInputValue = trim((string) ($_POST['confirm_mail_code'] ?? '')); ?>
+		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+			<input type="hidden" name="action" value="confirm-mail-code">
+			<input type="hidden" name="confirm_citizen_id" value="<?= htmlspecialchars((string) (($headerCitizenId !== '' ? $headerCitizenId : '194888')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+			<label for="confirm_mail_code_input"><strong>Codigo confirmacion:</strong></label>
+			<input id="confirm_mail_code_input" type="text" name="confirm_mail_code" value="<?= htmlspecialchars($confirmCodeInputValue, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="Pegue aqui el stamp" required style="min-width:280px;padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
+			<button type="submit" class="train-button">Confirmar correo</button>
+			<span class="section-meta">GET: https://vara.e-sim.org/confirmMail.html?citizenId=<?= htmlspecialchars((string) (($headerCitizenId !== '' ? $headerCitizenId : '194888')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>&stamp=CODE</span>
+		</form>
+
 		<?php if (!empty($changeEmailResult['attempted'])): ?>
 			<p class="<?= !empty($changeEmailResult['saved']) ? 'ok' : 'warn' ?>" style="margin:8px 0 0;">
 				Cambio email: <?= htmlspecialchars((string) ($changeEmailResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
@@ -8634,6 +8726,19 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			</p>
 			<?php if (!empty($resendConfirmationMailResult['responseSnippet'])): ?>
 				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $resendConfirmationMailResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+		<?php endif; ?>
+
+		<?php if (!empty($confirmMailCodeResult['attempted'])): ?>
+			<p class="<?= !empty($confirmMailCodeResult['saved']) ? 'ok' : 'warn' ?>" style="margin:8px 0 0;">
+				Confirmacion correo: <?= htmlspecialchars((string) ($confirmMailCodeResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= !empty($confirmMailCodeResult['citizenId']) ? ' | Citizen ' . htmlspecialchars((string) $confirmMailCodeResult['citizenId'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($confirmMailCodeResult['url']) ? ' | URL ' . htmlspecialchars((string) $confirmMailCodeResult['url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= isset($confirmMailCodeResult['httpStatus']) ? ' | HTTP ' . (int) $confirmMailCodeResult['httpStatus'] : '' ?>
+				<?= !empty($confirmMailCodeResult['error']) ? ' | Error cURL: ' . htmlspecialchars((string) $confirmMailCodeResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+			<?php if (!empty($confirmMailCodeResult['responseSnippet'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $confirmMailCodeResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
 			<?php endif; ?>
 		<?php endif; ?>
 	</div>
