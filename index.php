@@ -326,6 +326,12 @@ $auctionMarketLoadRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'auctions-load';
 $auctionBidRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'auction-bid-now';
+$articleInspectRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+	&& (string) ($_POST['action'] ?? '') === 'article-inspect-url';
+$articleVoteRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+	&& (string) ($_POST['action'] ?? '') === 'article-vote-now';
+$articleSubscribeRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+	&& (string) ($_POST['action'] ?? '') === 'article-subscribe-now';
 $freeStarterPackClaimRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'free-starter-pack-claim';
 $trainAttempted = false;
@@ -741,6 +747,41 @@ $auctionBidResult = [
 	'url' => '',
 	'auctionId' => '',
 	'price' => '',
+	'responseSnippet' => '',
+	'error' => '',
+];
+$articleInspectResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => '',
+	'articleId' => '',
+	'articleTitle' => '',
+	'voteDetected' => false,
+	'subscribeDetected' => false,
+	'voteActionUrl' => '',
+	'subscribeActionUrl' => '',
+	'responseSnippet' => '',
+	'error' => '',
+];
+$articleVoteResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => '',
+	'articleId' => '',
+	'responseSnippet' => '',
+	'error' => '',
+];
+$articleSubscribeResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => '',
+	'articleId' => '',
 	'responseSnippet' => '',
 	'error' => '',
 ];
@@ -2120,6 +2161,91 @@ if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) &&
 	];
 }
 
+if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) && $articleInspectRequested) {
+	$articleUrlRaw = trim((string) ($_POST['article_url'] ?? ''));
+	$articleUrl = normalizeArticlePageUrl($articleUrlRaw, (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'));
+
+	$articleInspectResult = [
+		'attempted' => true,
+		'saved' => false,
+		'reason' => $articleUrl === '' ? 'article-url-invalid' : 'article-inspect-request-error',
+		'httpStatus' => 0,
+		'url' => $articleUrl,
+		'articleId' => '',
+		'articleTitle' => '',
+		'voteDetected' => false,
+		'subscribeDetected' => false,
+		'voteActionUrl' => '',
+		'subscribeActionUrl' => '',
+		'responseSnippet' => '',
+		'error' => '',
+	];
+
+	if ($articleUrl !== '') {
+		$articleStep = curlRequest($ch, $articleUrl, [
+			CURLOPT_POST => false,
+			CURLOPT_HTTPGET => true,
+			CURLOPT_HTTPHEADER => $headers,
+		]);
+
+		$articleBody = (string) ($articleStep['body'] ?? '');
+		$articleHttpOk = $articleStep['errno'] === 0
+			&& (int) ($articleStep['statusCode'] ?? 0) >= 200
+			&& (int) ($articleStep['statusCode'] ?? 0) < 400
+			&& trim($articleBody) !== '';
+		$articleInfo = $articleHttpOk
+			? extractArticleActionsFromHtml($articleBody, (string) ($articleStep['effectiveUrl'] ?: $articleUrl))
+			: [
+				'articleId' => '',
+				'articleTitle' => '',
+				'voteDetected' => false,
+				'subscribeDetected' => false,
+				'voteActionUrl' => '',
+				'subscribeActionUrl' => '',
+			];
+
+		$articleInspectResult = [
+			'attempted' => true,
+			'saved' => $articleHttpOk,
+			'reason' => !$articleHttpOk
+				? ((int) ($articleStep['errno'] ?? 0) !== 0 ? 'article-inspect-request-error' : 'article-inspect-http-error')
+				: ((!empty($articleInfo['voteDetected']) || !empty($articleInfo['subscribeDetected'])) ? 'article-controls-found' : 'article-controls-not-found'),
+			'httpStatus' => (int) ($articleStep['statusCode'] ?? 0),
+			'url' => (string) ($articleStep['effectiveUrl'] ?: $articleUrl),
+			'articleId' => (string) ($articleInfo['articleId'] ?? ''),
+			'articleTitle' => (string) ($articleInfo['articleTitle'] ?? ''),
+			'voteDetected' => !empty($articleInfo['voteDetected']),
+			'subscribeDetected' => !empty($articleInfo['subscribeDetected']),
+			'voteActionUrl' => (string) ($articleInfo['voteActionUrl'] ?? ''),
+			'subscribeActionUrl' => (string) ($articleInfo['subscribeActionUrl'] ?? ''),
+			'responseSnippet' => trim(substr(compactNodeText($articleBody), 0, 280)),
+			'error' => (string) ($articleStep['error'] ?? ''),
+		];
+	}
+}
+
+if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) && $articleVoteRequested) {
+	$articleId = preg_replace('/\D+/', '', trim((string) ($_POST['article_id'] ?? '')));
+	$articleUrl = normalizeArticlePageUrl(trim((string) ($_POST['article_url'] ?? '')), (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'));
+	$voteActionUrl = trim((string) ($_POST['article_vote_action_url'] ?? ''));
+
+	$articleVoteResult = submitArticleVote($ch, $articleUrl, $headers, [
+		'articleId' => $articleId,
+		'voteActionUrl' => $voteActionUrl,
+	]);
+}
+
+if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) && $articleSubscribeRequested) {
+	$articleId = preg_replace('/\D+/', '', trim((string) ($_POST['article_id'] ?? '')));
+	$articleUrl = normalizeArticlePageUrl(trim((string) ($_POST['article_url'] ?? '')), (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'));
+	$subscribeActionUrl = trim((string) ($_POST['article_subscribe_action_url'] ?? ''));
+
+	$articleSubscribeResult = submitArticleSubscribe($ch, $articleUrl, $headers, [
+		'articleId' => $articleId,
+		'subscribeActionUrl' => $subscribeActionUrl,
+	]);
+}
+
 if ($fatalError === '' && $banditBlueOpenRequested) {
 	$banditBlueOpenResult = openBanditBlueGame($ch, (string) ($step3['effectiveUrl'] ?: $baseUrl), $headers, $gameRoomUrl);
 }
@@ -3377,6 +3503,33 @@ $_SESSION['curl_last_login'] = [
 		'auctionId' => (string) ($auctionBidResult['auctionId'] ?? ''),
 		'price' => (string) ($auctionBidResult['price'] ?? ''),
 	],
+	'article_inspect_result' => [
+		'attempted' => (bool) ($articleInspectResult['attempted'] ?? false),
+		'saved' => (bool) ($articleInspectResult['saved'] ?? false),
+		'reason' => (string) ($articleInspectResult['reason'] ?? ''),
+		'httpStatus' => (int) ($articleInspectResult['httpStatus'] ?? 0),
+		'url' => (string) ($articleInspectResult['url'] ?? ''),
+		'articleId' => (string) ($articleInspectResult['articleId'] ?? ''),
+		'articleTitle' => (string) ($articleInspectResult['articleTitle'] ?? ''),
+		'voteDetected' => (bool) ($articleInspectResult['voteDetected'] ?? false),
+		'subscribeDetected' => (bool) ($articleInspectResult['subscribeDetected'] ?? false),
+	],
+	'article_vote_result' => [
+		'attempted' => (bool) ($articleVoteResult['attempted'] ?? false),
+		'saved' => (bool) ($articleVoteResult['saved'] ?? false),
+		'reason' => (string) ($articleVoteResult['reason'] ?? ''),
+		'httpStatus' => (int) ($articleVoteResult['httpStatus'] ?? 0),
+		'url' => (string) ($articleVoteResult['url'] ?? ''),
+		'articleId' => (string) ($articleVoteResult['articleId'] ?? ''),
+	],
+	'article_subscribe_result' => [
+		'attempted' => (bool) ($articleSubscribeResult['attempted'] ?? false),
+		'saved' => (bool) ($articleSubscribeResult['saved'] ?? false),
+		'reason' => (string) ($articleSubscribeResult['reason'] ?? ''),
+		'httpStatus' => (int) ($articleSubscribeResult['httpStatus'] ?? 0),
+		'url' => (string) ($articleSubscribeResult['url'] ?? ''),
+		'articleId' => (string) ($articleSubscribeResult['articleId'] ?? ''),
+	],
 	'product_market_result' => [
 		'attempted' => (bool) ($productMarketResult['attempted'] ?? false),
 		'reason' => (string) ($productMarketResult['reason'] ?? ''),
@@ -4435,6 +4588,274 @@ function submitAuctionBid($ch, string $refererUrl, array $defaultHeaders, array 
 		'auctionId' => $auctionId,
 		'price' => $price,
 		'responseSnippet' => trim(substr(compactNodeText($fallbackBody), 0, 280)),
+		'error' => (string) (($lastStep['error'] ?? '')),
+	];
+}
+
+function normalizeArticlePageUrl(string $rawUrl, string $fallbackBaseUrl = 'https://vara.e-sim.org/index.html'): string
+{
+	$raw = trim(html_entity_decode($rawUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+	if ($raw === '') {
+		return '';
+	}
+
+	$host = 'vara.e-sim.org';
+	if (preg_match('/^https?:\/\/([^\/]+)/i', $raw, $hostMatch) === 1) {
+		$candidateHost = strtolower(trim((string) ($hostMatch[1] ?? '')));
+		if (preg_match('/^[a-z0-9.-]+\.e-sim\.org$/', $candidateHost) === 1) {
+			$host = $candidateHost;
+		}
+	}
+
+	if (preg_match('/^\d+$/', $raw) === 1) {
+		return 'https://' . $host . '/article.html?id=' . $raw;
+	}
+
+	$resolved = preg_match('/^https?:\/\//i', $raw) === 1
+		? $raw
+		: resolveUrl($fallbackBaseUrl, $raw);
+
+	if (preg_match('/^https?:\/\/([^\/]+)/i', $resolved, $resolvedHostMatch) === 1) {
+		$candidateHost = strtolower(trim((string) ($resolvedHostMatch[1] ?? '')));
+		if (preg_match('/^[a-z0-9.-]+\.e-sim\.org$/', $candidateHost) === 1) {
+			$host = $candidateHost;
+		}
+	}
+
+	$id = '';
+	if (preg_match('/[?&]id=(\d+)/i', $resolved, $idMatch) === 1) {
+		$id = (string) ($idMatch[1] ?? '');
+	}
+
+	if ($id === '') {
+		return '';
+	}
+
+	return 'https://' . $host . '/article.html?id=' . $id;
+}
+
+function extractArticleActionsFromHtml(string $html, string $baseUrl): array
+{
+	$result = [
+		'articleId' => '',
+		'articleTitle' => '',
+		'voteDetected' => false,
+		'subscribeDetected' => false,
+		'voteActionUrl' => '',
+		'subscribeActionUrl' => '',
+	];
+
+	if (trim($html) === '') {
+		return $result;
+	}
+
+	if (preg_match('/[?&]id=(\d+)/i', $baseUrl, $idMatch) === 1) {
+		$result['articleId'] = (string) ($idMatch[1] ?? '');
+	}
+
+	$dom = new DOMDocument();
+	libxml_use_internal_errors(true);
+	$dom->loadHTML($html);
+	libxml_clear_errors();
+	$xpath = new DOMXPath($dom);
+
+	$titleNode = $xpath->query('//h1[1]')->item(0);
+	if (!($titleNode instanceof DOMElement)) {
+		$titleNode = $xpath->query('//h2[1]')->item(0);
+	}
+	if ($titleNode instanceof DOMElement) {
+		$result['articleTitle'] = compactNodeText((string) $titleNode->textContent);
+	}
+
+	$voteNode = $xpath->query('//*[@id="voteButton"][1]')->item(0);
+	if ($voteNode instanceof DOMElement) {
+		$result['voteDetected'] = true;
+	}
+	if (!$result['voteDetected']) {
+		$voteHintNode = $xpath->query('//*[contains(concat(" ", normalize-space(@class), " "), " subVoteButton ") and contains(normalize-space(string(.)), "+1")][1]')->item(0);
+		if ($voteHintNode instanceof DOMElement) {
+			$result['voteDetected'] = true;
+		}
+	}
+
+	$subscribeNode = $xpath->query('//*[@id="subLink"][1]')->item(0);
+	if ($subscribeNode instanceof DOMElement) {
+		$result['subscribeDetected'] = true;
+	}
+	if (!$result['subscribeDetected']) {
+		$subscribeHintNode = $xpath->query('//*[@id="subButton"][1]')->item(0);
+		if ($subscribeHintNode instanceof DOMElement) {
+			$result['subscribeDetected'] = true;
+		}
+	}
+
+	$articleUrl = normalizeArticlePageUrl($baseUrl, $baseUrl);
+	if ($articleUrl !== '') {
+		if (!empty($result['voteDetected'])) {
+			$result['voteActionUrl'] = $articleUrl . '&vote=1';
+		}
+		if (!empty($result['subscribeDetected'])) {
+			$result['subscribeActionUrl'] = $articleUrl . '&subscribe=true';
+		}
+	}
+
+	return $result;
+}
+
+function submitArticleVote($ch, string $articleUrl, array $defaultHeaders, array $voteData): array
+{
+	$articleId = preg_replace('/\D+/', '', trim((string) ($voteData['articleId'] ?? '')));
+	$voteActionUrl = trim((string) ($voteData['voteActionUrl'] ?? ''));
+	$safeArticleUrl = $articleUrl !== '' ? $articleUrl : normalizeArticlePageUrl($articleId);
+
+	$result = [
+		'attempted' => true,
+		'saved' => false,
+		'reason' => 'article-vote-invalid-data',
+		'httpStatus' => 0,
+		'url' => '',
+		'articleId' => $articleId,
+		'responseSnippet' => '',
+		'error' => '',
+	];
+
+	if ($articleId === '' || $safeArticleUrl === '') {
+		return $result;
+	}
+
+	$targetUrls = [];
+	if ($voteActionUrl !== '') {
+		$targetUrls[] = $voteActionUrl;
+	}
+	$targetUrls[] = $safeArticleUrl . '&vote=1';
+	$targetUrls[] = 'https://vara.e-sim.org/articleVote.html?id=' . rawurlencode($articleId);
+	$targetUrls[] = 'https://vara.e-sim.org/articleAction.html?action=VOTE&id=' . rawurlencode($articleId);
+
+	$headers = array_merge($defaultHeaders, [
+		'Origin: https://vara.e-sim.org',
+		'Referer: ' . $safeArticleUrl,
+		'X-Requested-With: XMLHttpRequest',
+	]);
+
+	$lastStep = null;
+	$lastTargetUrl = '';
+	foreach ($targetUrls as $targetUrl) {
+		$step = curlRequest($ch, $targetUrl, [
+			CURLOPT_POST => false,
+			CURLOPT_HTTPGET => true,
+			CURLOPT_HTTPHEADER => $headers,
+		]);
+		$lastStep = $step;
+		$lastTargetUrl = $targetUrl;
+
+		$body = (string) ($step['body'] ?? '');
+		$httpOk = (int) ($step['errno'] ?? 0) === 0
+			&& (int) ($step['statusCode'] ?? 0) >= 200
+			&& (int) ($step['statusCode'] ?? 0) < 400;
+		$looksError = preg_match('/\b(error|failed|forbidden|denied|not\s+logged|captcha|already\s+voted)\b/i', $body) === 1;
+		$looksVote = str_contains(strtolower($body), 'votebutton') || str_contains(strtolower($body), '+1') || str_contains(strtolower($body), 'article');
+
+		if ($httpOk && (!$looksError || $looksVote)) {
+			return [
+				'attempted' => true,
+				'saved' => true,
+				'reason' => 'article-vote-submitted',
+				'httpStatus' => (int) ($step['statusCode'] ?? 0),
+				'url' => (string) ($step['effectiveUrl'] ?: $targetUrl),
+				'articleId' => $articleId,
+				'responseSnippet' => trim(substr(compactNodeText($body), 0, 280)),
+				'error' => (string) ($step['error'] ?? ''),
+			];
+		}
+	}
+
+	return [
+		'attempted' => true,
+		'saved' => false,
+		'reason' => (int) (($lastStep['errno'] ?? 0)) !== 0 ? 'article-vote-request-error' : 'article-vote-rejected',
+		'httpStatus' => (int) (($lastStep['statusCode'] ?? 0)),
+		'url' => (string) (($lastStep['effectiveUrl'] ?? '') !== '' ? $lastStep['effectiveUrl'] : $lastTargetUrl),
+		'articleId' => $articleId,
+		'responseSnippet' => trim(substr(compactNodeText((string) (($lastStep['body'] ?? ''))), 0, 280)),
+		'error' => (string) (($lastStep['error'] ?? '')),
+	];
+}
+
+function submitArticleSubscribe($ch, string $articleUrl, array $defaultHeaders, array $subscribeData): array
+{
+	$articleId = preg_replace('/\D+/', '', trim((string) ($subscribeData['articleId'] ?? '')));
+	$subscribeActionUrl = trim((string) ($subscribeData['subscribeActionUrl'] ?? ''));
+	$safeArticleUrl = $articleUrl !== '' ? $articleUrl : normalizeArticlePageUrl($articleId);
+
+	$result = [
+		'attempted' => true,
+		'saved' => false,
+		'reason' => 'article-subscribe-invalid-data',
+		'httpStatus' => 0,
+		'url' => '',
+		'articleId' => $articleId,
+		'responseSnippet' => '',
+		'error' => '',
+	];
+
+	if ($articleId === '' || $safeArticleUrl === '') {
+		return $result;
+	}
+
+	$targetUrls = [];
+	if ($subscribeActionUrl !== '') {
+		$targetUrls[] = $subscribeActionUrl;
+	}
+	$targetUrls[] = $safeArticleUrl . '&subscribe=true';
+	$targetUrls[] = $safeArticleUrl . '&sub=1';
+	$targetUrls[] = 'https://vara.e-sim.org/articleAction.html?action=SUBSCRIBE&id=' . rawurlencode($articleId);
+
+	$headers = array_merge($defaultHeaders, [
+		'Origin: https://vara.e-sim.org',
+		'Referer: ' . $safeArticleUrl,
+		'X-Requested-With: XMLHttpRequest',
+	]);
+
+	$lastStep = null;
+	$lastTargetUrl = '';
+	foreach ($targetUrls as $targetUrl) {
+		$step = curlRequest($ch, $targetUrl, [
+			CURLOPT_POST => false,
+			CURLOPT_HTTPGET => true,
+			CURLOPT_HTTPHEADER => $headers,
+		]);
+		$lastStep = $step;
+		$lastTargetUrl = $targetUrl;
+
+		$body = (string) ($step['body'] ?? '');
+		$httpOk = (int) ($step['errno'] ?? 0) === 0
+			&& (int) ($step['statusCode'] ?? 0) >= 200
+			&& (int) ($step['statusCode'] ?? 0) < 400;
+		$looksError = preg_match('/\b(error|failed|forbidden|denied|not\s+logged|captcha)\b/i', $body) === 1;
+		$looksSubscribe = str_contains(strtolower($body), 'subbutton') || str_contains(strtolower($body), 'article') || str_contains(strtolower($body), 'subscribe');
+
+		if ($httpOk && (!$looksError || $looksSubscribe)) {
+			return [
+				'attempted' => true,
+				'saved' => true,
+				'reason' => 'article-subscribe-submitted',
+				'httpStatus' => (int) ($step['statusCode'] ?? 0),
+				'url' => (string) ($step['effectiveUrl'] ?: $targetUrl),
+				'articleId' => $articleId,
+				'responseSnippet' => trim(substr(compactNodeText($body), 0, 280)),
+				'error' => (string) ($step['error'] ?? ''),
+			];
+		}
+	}
+
+	return [
+		'attempted' => true,
+		'saved' => false,
+		'reason' => (int) (($lastStep['errno'] ?? 0)) !== 0 ? 'article-subscribe-request-error' : 'article-subscribe-rejected',
+		'httpStatus' => (int) (($lastStep['statusCode'] ?? 0)),
+		'url' => (string) (($lastStep['effectiveUrl'] ?? '') !== '' ? $lastStep['effectiveUrl'] : $lastTargetUrl),
+		'articleId' => $articleId,
+		'responseSnippet' => trim(substr(compactNodeText((string) (($lastStep['body'] ?? ''))), 0, 280)),
 		'error' => (string) (($lastStep['error'] ?? '')),
 	];
 }
@@ -9640,6 +10061,94 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			</p>
 			<?php if (!empty($partyJoinResult['responseSnippet'])): ?>
 				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $partyJoinResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+		<?php endif; ?>
+	</div>
+
+	<div class="section-panel">
+		<h2 class="section-title">Articulos</h2>
+		<p class="section-meta" style="margin:0;">Ingresa URL del articulo para inspeccionar controles de votar y suscribirse.</p>
+		<?php
+		$articleUrlInput = trim((string) ($_POST['article_url'] ?? ''));
+		if ($articleUrlInput === '') {
+			$articleUrlInput = 'https://vara.e-sim.org/article.html?id=79';
+		}
+		?>
+		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+			<input type="hidden" name="action" value="article-inspect-url">
+			<label for="article_url_input"><strong>URL articulo:</strong></label>
+			<input id="article_url_input" type="url" name="article_url" value="<?= htmlspecialchars($articleUrlInput, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="https://vara.e-sim.org/article.html?id=79" required style="min-width:360px;padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
+			<button type="submit" class="train-button">Inspeccionar articulo</button>
+		</form>
+
+		<?php if (!empty($articleInspectResult['attempted'])): ?>
+			<p class="<?= (!empty($articleInspectResult['voteDetected']) || !empty($articleInspectResult['subscribeDetected'])) ? 'ok' : 'warn' ?>" style="margin:8px 0 0;">
+				Inspeccion articulo: <?= htmlspecialchars((string) ($articleInspectResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= !empty($articleInspectResult['articleTitle']) ? ' | Titulo ' . htmlspecialchars((string) $articleInspectResult['articleTitle'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($articleInspectResult['articleId']) ? ' | ID ' . htmlspecialchars((string) $articleInspectResult['articleId'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($articleInspectResult['url']) ? ' | URL ' . htmlspecialchars((string) $articleInspectResult['url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= isset($articleInspectResult['httpStatus']) ? ' | HTTP ' . (int) $articleInspectResult['httpStatus'] : '' ?>
+				<?= !empty($articleInspectResult['error']) ? ' | Error cURL: ' . htmlspecialchars((string) $articleInspectResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+			<p class="section-meta" style="margin:6px 0 0;">
+				Votar detectado: <?= !empty($articleInspectResult['voteDetected']) ? 'SI' : 'NO' ?>
+				| Suscribirse detectado: <?= !empty($articleInspectResult['subscribeDetected']) ? 'SI' : 'NO' ?>
+				<?= !empty($articleInspectResult['voteActionUrl']) ? ' | Vote URL ' . htmlspecialchars((string) $articleInspectResult['voteActionUrl'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($articleInspectResult['subscribeActionUrl']) ? ' | Subscribe URL ' . htmlspecialchars((string) $articleInspectResult['subscribeActionUrl'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+
+			<?php if (!empty($articleInspectResult['articleId']) && !empty($articleInspectResult['url'])): ?>
+				<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+					<?php if (!empty($articleInspectResult['voteDetected'])): ?>
+						<form method="post" style="margin:0;display:inline-flex;align-items:center;gap:8px;">
+							<input type="hidden" name="action" value="article-vote-now">
+							<input type="hidden" name="article_id" value="<?= htmlspecialchars((string) ($articleInspectResult['articleId'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+							<input type="hidden" name="article_url" value="<?= htmlspecialchars((string) ($articleInspectResult['url'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+							<input type="hidden" name="article_vote_action_url" value="<?= htmlspecialchars((string) ($articleInspectResult['voteActionUrl'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+							<button type="submit" class="train-button" style="background:#0d8f49;border-color:#0b7a3e;">Votar +1</button>
+						</form>
+					<?php endif; ?>
+
+					<?php if (!empty($articleInspectResult['subscribeDetected'])): ?>
+						<form method="post" style="margin:0;display:inline-flex;align-items:center;gap:8px;">
+							<input type="hidden" name="action" value="article-subscribe-now">
+							<input type="hidden" name="article_id" value="<?= htmlspecialchars((string) ($articleInspectResult['articleId'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+							<input type="hidden" name="article_url" value="<?= htmlspecialchars((string) ($articleInspectResult['url'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+							<input type="hidden" name="article_subscribe_action_url" value="<?= htmlspecialchars((string) ($articleInspectResult['subscribeActionUrl'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+							<button type="submit" class="train-button" style="background:#925f00;border-color:#7c4f00;">Suscribirme</button>
+						</form>
+					<?php endif; ?>
+				</div>
+			<?php endif; ?>
+
+			<?php if (!empty($articleInspectResult['responseSnippet'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $articleInspectResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+		<?php endif; ?>
+
+		<?php if (!empty($articleVoteResult['attempted'])): ?>
+			<p class="<?= !empty($articleVoteResult['saved']) ? 'ok' : 'warn' ?>" style="margin:8px 0 0;">
+				Voto articulo: <?= htmlspecialchars((string) ($articleVoteResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= !empty($articleVoteResult['articleId']) ? ' | ID ' . htmlspecialchars((string) $articleVoteResult['articleId'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($articleVoteResult['url']) ? ' | URL ' . htmlspecialchars((string) $articleVoteResult['url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= isset($articleVoteResult['httpStatus']) ? ' | HTTP ' . (int) $articleVoteResult['httpStatus'] : '' ?>
+				<?= !empty($articleVoteResult['error']) ? ' | Error cURL: ' . htmlspecialchars((string) $articleVoteResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+			<?php if (!empty($articleVoteResult['responseSnippet'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Respuesta voto: <?= htmlspecialchars((string) $articleVoteResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+		<?php endif; ?>
+
+		<?php if (!empty($articleSubscribeResult['attempted'])): ?>
+			<p class="<?= !empty($articleSubscribeResult['saved']) ? 'ok' : 'warn' ?>" style="margin:8px 0 0;">
+				Suscripcion articulo: <?= htmlspecialchars((string) ($articleSubscribeResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= !empty($articleSubscribeResult['articleId']) ? ' | ID ' . htmlspecialchars((string) $articleSubscribeResult['articleId'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($articleSubscribeResult['url']) ? ' | URL ' . htmlspecialchars((string) $articleSubscribeResult['url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= isset($articleSubscribeResult['httpStatus']) ? ' | HTTP ' . (int) $articleSubscribeResult['httpStatus'] : '' ?>
+				<?= !empty($articleSubscribeResult['error']) ? ' | Error cURL: ' . htmlspecialchars((string) $articleSubscribeResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+			<?php if (!empty($articleSubscribeResult['responseSnippet'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Respuesta suscripcion: <?= htmlspecialchars((string) $articleSubscribeResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
 			<?php endif; ?>
 		<?php endif; ?>
 	</div>
