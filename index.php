@@ -1850,7 +1850,7 @@ if ($fatalError === '' && $partyJoinRequested) {
 	$partyName = trim((string) ($_POST['party_name'] ?? ''));
 	$joinActionUrl = trim((string) ($_POST['party_join_action_url'] ?? ''));
 	$joinMethod = strtoupper(trim((string) ($_POST['party_join_method'] ?? 'POST')));
-	$joinChoice = trim((string) ($_POST['party_join_choice'] ?? 'no'));
+	$joinChoice = trim((string) ($_POST['party_join_choice'] ?? 'yes'));
 	$joinFieldsEncoded = trim((string) ($_POST['party_join_fields_encoded'] ?? ''));
 	$joinFieldsDecoded = $joinFieldsEncoded !== '' ? base64_decode($joinFieldsEncoded, true) : '';
 	$joinFields = is_string($joinFieldsDecoded) ? json_decode($joinFieldsDecoded, true) : [];
@@ -10376,13 +10376,9 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 					<input type="hidden" name="party_join_action_url" value="<?= htmlspecialchars($partyJoinActionUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
 					<input type="hidden" name="party_join_method" value="<?= htmlspecialchars($partyJoinMethod, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
 					<input type="hidden" name="party_join_fields_encoded" value="<?= htmlspecialchars($partyJoinFieldsEncoded, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
-					<label for="party_join_choice_input"><strong>Confirmar union:</strong></label>
-					<select id="party_join_choice_input" name="party_join_choice" style="padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
-						<option value="no" selected>No, solo preparar</option>
-						<option value="yes">Si, unirme ahora</option>
-					</select>
+					<input type="hidden" name="party_join_choice" value="yes">
 					<button type="submit" class="train-button">Unirse al Partido</button>
-					<span class="section-meta">Listo: usa action y campos detectados del formulario real.</span>
+					<span class="section-meta">Se envia POST directo con action JOIN e id detectado.</span>
 				</form>
 			<?php elseif (!empty($partyInspectResult['joinDetected'])): ?>
 				<p class="warn" style="margin:6px 0 0;">Se detecto control de union, pero sin action URL utilizable.</p>
@@ -10423,10 +10419,10 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			<?php if (!empty($partyJoinResult['responseSnippet'])): ?>
 				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $partyJoinResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
 			<?php endif; ?>
-			<?php if (!empty($partyJoinResult['responseHtml'])): ?>
+			<?php if (!empty($partyJoinResult['attempted']) && (($partyJoinResult['joinChoice'] ?? '') === 'yes' || !empty($partyJoinResult['responseHtml']))): ?>
 				<details style="margin-top:8px;">
 					<summary style="cursor:pointer;font-weight:600;color:#243c63;">Ver HTML respuesta de unirse al partido</summary>
-					<pre style="margin-top:8px;max-height:460px;overflow:auto;padding:10px;background:#f7f9fc;border:1px solid #d7e0ee;border-radius:8px;white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.35;"><?= htmlspecialchars((string) $partyJoinResult['responseHtml'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></pre>
+					<pre style="margin-top:8px;max-height:460px;overflow:auto;padding:10px;background:#f7f9fc;border:1px solid #d7e0ee;border-radius:8px;white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.35;"><?= htmlspecialchars((string) (($partyJoinResult['responseHtml'] ?? '') !== '' ? $partyJoinResult['responseHtml'] : '[respuesta vacia]'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></pre>
 				</details>
 			<?php endif; ?>
 		<?php endif; ?>
