@@ -620,6 +620,7 @@ $partyInspectResult = [
 	'joinFields' => [],
 	'joinIndicator' => '',
 	'responseSnippet' => '',
+	'responseHtml' => '',
 	'error' => '',
 ];
 $partyJoinResult = [
@@ -1759,6 +1760,7 @@ if ($fatalError === '' && $partyInspectRequested) {
 		'joinFields' => [],
 		'joinIndicator' => '',
 		'responseSnippet' => '',
+		'responseHtml' => '',
 		'error' => '',
 	];
 
@@ -1804,6 +1806,7 @@ if ($fatalError === '' && $partyInspectRequested) {
 			'joinFields' => is_array($joinInfo['joinFields'] ?? null) ? (array) $joinInfo['joinFields'] : [],
 			'joinIndicator' => (string) ($joinInfo['joinIndicator'] ?? ''),
 			'responseSnippet' => trim(substr(compactNodeText($partyBody), 0, 280)),
+			'responseHtml' => $partyBody,
 			'error' => (string) ($partyStep['error'] ?? ''),
 		];
 	}
@@ -9915,7 +9918,7 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 		<?php
 		$partyInspectUrlInput = trim((string) ($_POST['party_url'] ?? ''));
 		if ($partyInspectUrlInput === '') {
-			$partyInspectUrlInput = 'https://vara.e-sim.org/party.html?id=16';
+			$partyInspectUrlInput = 'https://vara.e-sim.org/party.html?id=166';
 		}
 		?>
 		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
@@ -10046,6 +10049,12 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			<?php endif; ?>
 			<?php if (!empty($partyInspectResult['responseSnippet'])): ?>
 				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $partyInspectResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+			<?php if (!empty($partyInspectResult['responseHtml'])): ?>
+				<details style="margin-top:8px;">
+					<summary style="cursor:pointer;font-weight:600;color:#243c63;">Ver HTML inspeccionado del partido</summary>
+					<pre style="margin-top:8px;max-height:460px;overflow:auto;padding:10px;background:#f7f9fc;border:1px solid #d7e0ee;border-radius:8px;white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.35;"><?= htmlspecialchars((string) $partyInspectResult['responseHtml'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></pre>
+				</details>
 			<?php endif; ?>
 		<?php endif; ?>
 
