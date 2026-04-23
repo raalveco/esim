@@ -300,6 +300,8 @@ $partyInspectRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'party-inspect-url';
 $partyJoinRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'party-join-now';
+$partyLeaveRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+	&& (string) ($_POST['action'] ?? '') === 'party-leave-now';
 $productMarketRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'product-market-load';
 $productMarketOffersRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
@@ -334,8 +336,12 @@ $articleSubscribeRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'article-subscribe-now';
 $electionsInspectRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'elections-inspect-url';
+$electionsCandidateRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+	&& (string) ($_POST['action'] ?? '') === 'elections-congress-candidate-now';
 $militaryUnitInspectRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'military-unit-inspect-url';
+$militaryUnitApplyRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+	&& (string) ($_POST['action'] ?? '') === 'military-unit-apply-now';
 $freeStarterPackClaimRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'free-starter-pack-claim';
 $trainAttempted = false;
@@ -623,6 +629,11 @@ $partyInspectResult = [
 	'joinMethod' => '',
 	'joinFields' => [],
 	'joinIndicator' => '',
+	'leaveDetected' => false,
+	'hasLeaveForm' => false,
+	'leaveActionUrl' => '',
+	'leaveMethod' => '',
+	'leaveFields' => [],
 	'responseSnippet' => '',
 	'responseHtml' => '',
 	'error' => '',
@@ -640,6 +651,20 @@ $partyJoinResult = [
 	'joinChoice' => 'no',
 	'curlErrno' => 0,
 	'totalTime' => 0.0,
+	'requestPayload' => '',
+	'responseSnippet' => '',
+	'responseHtml' => '',
+	'error' => '',
+];
+$partyLeaveResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => '',
+	'partyName' => '',
+	'leaveActionUrl' => '',
+	'leaveMethod' => 'POST',
 	'requestPayload' => '',
 	'responseSnippet' => '',
 	'responseHtml' => '',
@@ -803,7 +828,20 @@ $electionsInspectResult = [
 	'httpStatus' => 0,
 	'url' => 'https://vara.e-sim.org/elections.html?electionType=CONGRESS',
 	'pageTitle' => '',
+	'candidateActionUrl' => '',
 	'options' => [],
+	'responseSnippet' => '',
+	'responseHtml' => '',
+	'error' => '',
+];
+$electionsCandidateResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => '',
+	'presentation' => '',
+	'requestPayload' => '',
 	'responseSnippet' => '',
 	'responseHtml' => '',
 	'error' => '',
@@ -815,7 +853,25 @@ $militaryUnitInspectResult = [
 	'httpStatus' => 0,
 	'url' => 'https://vara.e-sim.org/militaryUnit.html?id=37',
 	'unitName' => '',
+	'applyDetected' => false,
+	'applyActionUrl' => '',
+	'applyMethod' => 'POST',
+	'applyFields' => [],
+	'applyDefaultMessage' => '',
 	'options' => [],
+	'responseSnippet' => '',
+	'responseHtml' => '',
+	'error' => '',
+];
+$militaryUnitApplyResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => '',
+	'unitId' => '',
+	'message' => '',
+	'requestPayload' => '',
 	'responseSnippet' => '',
 	'responseHtml' => '',
 	'error' => '',
@@ -1793,6 +1849,11 @@ if ($fatalError === '' && $partyInspectRequested) {
 		'joinMethod' => '',
 		'joinFields' => [],
 		'joinIndicator' => '',
+		'leaveDetected' => false,
+		'hasLeaveForm' => false,
+		'leaveActionUrl' => '',
+		'leaveMethod' => '',
+		'leaveFields' => [],
 		'responseSnippet' => '',
 		'responseHtml' => '',
 		'error' => '',
@@ -1821,6 +1882,11 @@ if ($fatalError === '' && $partyInspectRequested) {
 				'joinMethod' => '',
 				'joinFields' => [],
 				'joinIndicator' => '',
+				'leaveDetected' => false,
+				'hasLeaveForm' => false,
+				'leaveActionUrl' => '',
+				'leaveMethod' => '',
+				'leaveFields' => [],
 			];
 
 		$partyInspectResult = [
@@ -1828,7 +1894,9 @@ if ($fatalError === '' && $partyInspectRequested) {
 			'saved' => $partyHttpOk,
 			'reason' => !$partyHttpOk
 				? ((int) ($partyStep['errno'] ?? 0) !== 0 ? 'party-inspect-request-error' : 'party-inspect-http-error')
-				: (!empty($joinInfo['joinDetected']) ? 'party-join-control-found' : 'party-join-control-not-found'),
+				: (!empty($joinInfo['joinDetected'])
+					? 'party-join-control-found'
+					: (!empty($joinInfo['leaveDetected']) ? 'party-leave-control-found' : 'party-join-control-not-found')),
 			'httpStatus' => (int) ($partyStep['statusCode'] ?? 0),
 			'url' => (string) ($partyStep['effectiveUrl'] ?: $partyUrl),
 			'partyName' => (string) ($joinInfo['partyName'] ?? ''),
@@ -1839,6 +1907,11 @@ if ($fatalError === '' && $partyInspectRequested) {
 			'joinMethod' => (string) ($joinInfo['joinMethod'] ?? ''),
 			'joinFields' => is_array($joinInfo['joinFields'] ?? null) ? (array) $joinInfo['joinFields'] : [],
 			'joinIndicator' => (string) ($joinInfo['joinIndicator'] ?? ''),
+			'leaveDetected' => !empty($joinInfo['leaveDetected']),
+			'hasLeaveForm' => !empty($joinInfo['hasLeaveForm']),
+			'leaveActionUrl' => (string) ($joinInfo['leaveActionUrl'] ?? ''),
+			'leaveMethod' => (string) ($joinInfo['leaveMethod'] ?? ''),
+			'leaveFields' => is_array($joinInfo['leaveFields'] ?? null) ? (array) $joinInfo['leaveFields'] : [],
 			'responseSnippet' => trim(substr(compactNodeText($partyBody), 0, 280)),
 			'responseHtml' => $partyBody,
 			'error' => (string) ($partyStep['error'] ?? ''),
@@ -1956,6 +2029,85 @@ if ($fatalError === '' && $partyJoinRequested) {
 			'error' => (string) ($joinStep['error'] ?? ''),
 		];
 	}
+}
+
+if ($fatalError === '' && $partyLeaveRequested) {
+	$partyName = trim((string) ($_POST['party_name'] ?? ''));
+	$leaveActionUrl = trim((string) ($_POST['party_leave_action_url'] ?? ''));
+	$leaveMethod = strtoupper(trim((string) ($_POST['party_leave_method'] ?? 'POST')));
+	$leaveFieldsEncoded = trim((string) ($_POST['party_leave_fields_encoded'] ?? ''));
+	$leaveFieldsDecoded = $leaveFieldsEncoded !== '' ? base64_decode($leaveFieldsEncoded, true) : '';
+	$leaveFields = is_string($leaveFieldsDecoded) ? json_decode($leaveFieldsDecoded, true) : [];
+	if (!is_array($leaveFields)) {
+		$leaveFields = [];
+	}
+
+	if ($leaveActionUrl === '') {
+		$leaveActionUrl = 'https://vara.e-sim.org/partyStatistics.html';
+	}
+	$leaveActionUrl = resolveUrl($leaveActionUrl, 'partyStatistics.html');
+	if ($leaveMethod !== 'POST' && $leaveMethod !== 'GET') {
+		$leaveMethod = 'POST';
+	}
+
+	if (!isset($leaveFields['action']) || strtoupper(trim((string) $leaveFields['action'])) !== 'LEAVE') {
+		$leaveFields['action'] = 'LEAVE';
+	}
+
+	$leaveReferer = trim((string) ($_POST['party_url'] ?? ''));
+	if ($leaveReferer === '') {
+		$leaveReferer = (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html');
+	}
+
+	$leaveHeaders = array_merge($headers, [
+		'Origin: https://vara.e-sim.org',
+		'Referer: ' . $leaveReferer,
+	]);
+
+	if ($leaveMethod === 'GET') {
+		$leaveUrlWithParams = $leaveActionUrl;
+		if ($leaveFields !== []) {
+			$leaveUrlWithParams .= (str_contains($leaveUrlWithParams, '?') ? '&' : '?') . http_build_query($leaveFields);
+		}
+		$leaveStep = curlRequest($ch, $leaveUrlWithParams, [
+			CURLOPT_POST => false,
+			CURLOPT_HTTPGET => true,
+			CURLOPT_HTTPHEADER => $leaveHeaders,
+		]);
+	} else {
+		$leaveStep = curlRequest($ch, $leaveActionUrl, [
+			CURLOPT_POST => true,
+			CURLOPT_HTTPGET => false,
+			CURLOPT_POSTFIELDS => http_build_query($leaveFields),
+			CURLOPT_HTTPHEADER => array_merge($leaveHeaders, [
+				'Content-Type: application/x-www-form-urlencoded',
+			]),
+		]);
+	}
+
+	$leaveBody = (string) ($leaveStep['body'] ?? '');
+	$leaveHttpOk = $leaveStep['errno'] === 0
+		&& (int) ($leaveStep['statusCode'] ?? 0) >= 200
+		&& (int) ($leaveStep['statusCode'] ?? 0) < 400;
+	$leaveLooksSuccess = preg_match('/(left party|you left|success|saved|done)/i', $leaveBody) === 1;
+	$leaveLooksError = preg_match('/(error|failed|forbidden|denied|cannot|not logged)/i', $leaveBody) === 1;
+
+	$partyLeaveResult = [
+		'attempted' => true,
+		'saved' => $leaveHttpOk && ($leaveLooksSuccess || (!$leaveLooksError && trim($leaveBody) !== '')),
+		'reason' => !$leaveHttpOk
+			? ((int) ($leaveStep['errno'] ?? 0) !== 0 ? 'party-leave-request-error' : 'party-leave-http-error')
+			: ($leaveLooksSuccess ? 'party-leave-submitted' : ($leaveLooksError ? 'party-leave-rejected' : 'party-leave-processed')),
+		'httpStatus' => (int) ($leaveStep['statusCode'] ?? 0),
+		'url' => (string) ($leaveStep['effectiveUrl'] ?: $leaveActionUrl),
+		'partyName' => $partyName,
+		'leaveActionUrl' => $leaveActionUrl,
+		'leaveMethod' => $leaveMethod,
+		'requestPayload' => $leaveFields !== [] ? http_build_query($leaveFields) : '',
+		'responseSnippet' => trim(substr(compactNodeText($leaveBody), 0, 280)),
+		'responseHtml' => $leaveBody,
+		'error' => (string) ($leaveStep['error'] ?? ''),
+	];
 }
 
 if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? ''))) {
@@ -2298,6 +2450,7 @@ if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) &&
 		'httpStatus' => 0,
 		'url' => $electionsUrl,
 		'pageTitle' => '',
+		'candidateActionUrl' => '',
 		'options' => [],
 		'responseSnippet' => '',
 		'responseHtml' => '',
@@ -2326,12 +2479,68 @@ if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) &&
 			'httpStatus' => (int) ($electionsStep['statusCode'] ?? 0),
 			'url' => (string) ($electionsStep['effectiveUrl'] ?: $electionsUrl),
 			'pageTitle' => extractPagePrimaryTitle($electionsBody),
+			'candidateActionUrl' => $electionsHttpOk ? extractElectionsCongressCandidateActionUrl($electionsBody, (string) ($electionsStep['effectiveUrl'] ?: $electionsUrl)) : '',
 			'options' => $electionsHttpOk ? extractPageActionOptionsFromHtml($electionsBody, (string) ($electionsStep['effectiveUrl'] ?: $electionsUrl)) : [],
 			'responseSnippet' => trim(substr(compactNodeText($electionsBody), 0, 280)),
 			'responseHtml' => $electionsBody,
 			'error' => (string) ($electionsStep['error'] ?? ''),
 		];
 	}
+}
+
+if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) && $electionsCandidateRequested) {
+	$electionsUrl = normalizeElectionsPageUrl(trim((string) ($_POST['elections_url'] ?? '')), (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'));
+	$candidateActionUrlRaw = trim((string) ($_POST['elections_candidate_action_url'] ?? ''));
+	$candidateActionUrl = $candidateActionUrlRaw !== ''
+		? resolveUrl($electionsUrl !== '' ? $electionsUrl : (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'), $candidateActionUrlRaw)
+		: resolveUrl($electionsUrl !== '' ? $electionsUrl : (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'), 'congressElectionsCandidate');
+	$presentation = trim((string) ($_POST['elections_presentation'] ?? 'http://'));
+	if ($presentation === '') {
+		$presentation = 'http://';
+	}
+
+	$candidatePayload = ['presentation' => $presentation];
+	$candidateHeaders = array_merge($headers, [
+		'Origin: https://vara.e-sim.org',
+		'Referer: ' . ($electionsUrl !== '' ? $electionsUrl : (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html')),
+		'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
+		'Accept: application/json, text/plain, */*',
+		'X-Requested-With: XMLHttpRequest',
+	]);
+
+	$candidateStep = curlRequest($ch, $candidateActionUrl, [
+		CURLOPT_POST => true,
+		CURLOPT_HTTPGET => false,
+		CURLOPT_POSTFIELDS => http_build_query($candidatePayload),
+		CURLOPT_HTTPHEADER => $candidateHeaders,
+	]);
+
+	$candidateBody = (string) ($candidateStep['body'] ?? '');
+	$candidateHttpOk = $candidateStep['errno'] === 0
+		&& (int) ($candidateStep['statusCode'] ?? 0) >= 200
+		&& (int) ($candidateStep['statusCode'] ?? 0) < 400;
+	$candidateJsonStatus = '';
+	$candidateJsonError = '';
+	$candidateDecoded = json_decode($candidateBody, true);
+	if (is_array($candidateDecoded)) {
+		$candidateJsonStatus = strtoupper(trim((string) ($candidateDecoded['status'] ?? '')));
+		$candidateJsonError = trim((string) ($candidateDecoded['error'] ?? ($candidateDecoded['message'] ?? '')));
+	}
+
+	$electionsCandidateResult = [
+		'attempted' => true,
+		'saved' => $candidateHttpOk && ($candidateJsonStatus === '' || $candidateJsonStatus === 'OK'),
+		'reason' => !$candidateHttpOk
+			? ((int) ($candidateStep['errno'] ?? 0) !== 0 ? 'elections-candidate-request-error' : 'elections-candidate-http-error')
+			: (($candidateJsonStatus === 'OK' || $candidateJsonStatus === '') ? 'elections-candidate-submitted' : 'elections-candidate-rejected'),
+		'httpStatus' => (int) ($candidateStep['statusCode'] ?? 0),
+		'url' => (string) ($candidateStep['effectiveUrl'] ?: $candidateActionUrl),
+		'presentation' => $presentation,
+		'requestPayload' => http_build_query($candidatePayload),
+		'responseSnippet' => trim(substr(compactNodeText($candidateBody), 0, 280)),
+		'responseHtml' => $candidateBody,
+		'error' => $candidateJsonError !== '' ? $candidateJsonError : (string) ($candidateStep['error'] ?? ''),
+	];
 }
 
 if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) && $militaryUnitInspectRequested) {
@@ -2345,6 +2554,11 @@ if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) &&
 		'httpStatus' => 0,
 		'url' => $militaryUnitUrl,
 		'unitName' => '',
+		'applyDetected' => false,
+		'applyActionUrl' => '',
+		'applyMethod' => 'POST',
+		'applyFields' => [],
+		'applyDefaultMessage' => '',
 		'options' => [],
 		'responseSnippet' => '',
 		'responseHtml' => '',
@@ -2363,6 +2577,15 @@ if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) &&
 			&& (int) ($militaryUnitStep['statusCode'] ?? 0) >= 200
 			&& (int) ($militaryUnitStep['statusCode'] ?? 0) < 400
 			&& trim($militaryUnitBody) !== '';
+		$militaryApplyInfo = $militaryUnitHttpOk
+			? extractMilitaryUnitApplyFormFromHtml($militaryUnitBody, (string) ($militaryUnitStep['effectiveUrl'] ?: $militaryUnitUrl))
+			: [
+				'applyDetected' => false,
+				'applyActionUrl' => '',
+				'applyMethod' => 'POST',
+				'applyFields' => [],
+				'applyDefaultMessage' => '',
+			];
 
 		$militaryUnitInspectResult = [
 			'attempted' => true,
@@ -2373,12 +2596,93 @@ if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) &&
 			'httpStatus' => (int) ($militaryUnitStep['statusCode'] ?? 0),
 			'url' => (string) ($militaryUnitStep['effectiveUrl'] ?: $militaryUnitUrl),
 			'unitName' => extractPagePrimaryTitle($militaryUnitBody),
+			'applyDetected' => !empty($militaryApplyInfo['applyDetected']),
+			'applyActionUrl' => (string) ($militaryApplyInfo['applyActionUrl'] ?? ''),
+			'applyMethod' => (string) ($militaryApplyInfo['applyMethod'] ?? 'POST'),
+			'applyFields' => is_array($militaryApplyInfo['applyFields'] ?? null) ? (array) $militaryApplyInfo['applyFields'] : [],
+			'applyDefaultMessage' => (string) ($militaryApplyInfo['applyDefaultMessage'] ?? ''),
 			'options' => $militaryUnitHttpOk ? extractPageActionOptionsFromHtml($militaryUnitBody, (string) ($militaryUnitStep['effectiveUrl'] ?: $militaryUnitUrl)) : [],
 			'responseSnippet' => trim(substr(compactNodeText($militaryUnitBody), 0, 280)),
 			'responseHtml' => $militaryUnitBody,
 			'error' => (string) ($militaryUnitStep['error'] ?? ''),
 		];
 	}
+}
+
+if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) && $militaryUnitApplyRequested) {
+	$militaryUnitUrl = normalizeMilitaryUnitPageUrl(trim((string) ($_POST['military_unit_url'] ?? '')), (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'));
+	$applyActionUrlRaw = trim((string) ($_POST['military_unit_apply_action_url'] ?? ''));
+	$applyMethod = strtoupper(trim((string) ($_POST['military_unit_apply_method'] ?? 'POST')));
+	$applyFieldsEncoded = trim((string) ($_POST['military_unit_apply_fields_encoded'] ?? ''));
+	$applyFieldsDecoded = $applyFieldsEncoded !== '' ? base64_decode($applyFieldsEncoded, true) : '';
+	$applyFields = is_string($applyFieldsDecoded) ? json_decode($applyFieldsDecoded, true) : [];
+	if (!is_array($applyFields)) {
+		$applyFields = [];
+	}
+
+	$applyMessage = trim((string) ($_POST['military_unit_apply_message'] ?? (string) ($applyFields['message'] ?? '')));
+	if ($applyMessage !== '') {
+		$applyFields['message'] = $applyMessage;
+	}
+	if (!isset($applyFields['action']) || strtoupper(trim((string) $applyFields['action'])) !== 'SEND_APPLICATION') {
+		$applyFields['action'] = 'SEND_APPLICATION';
+	}
+
+	$applyActionUrl = $applyActionUrlRaw !== ''
+		? resolveUrl($militaryUnitUrl !== '' ? $militaryUnitUrl : (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'), $applyActionUrlRaw)
+		: resolveUrl($militaryUnitUrl !== '' ? $militaryUnitUrl : (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'), 'militaryUnitsActions.html');
+
+	if ($applyMethod !== 'POST' && $applyMethod !== 'GET') {
+		$applyMethod = 'POST';
+	}
+
+	$applyHeaders = array_merge($headers, [
+		'Origin: https://vara.e-sim.org',
+		'Referer: ' . ($militaryUnitUrl !== '' ? $militaryUnitUrl : (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html')),
+		'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
+	]);
+
+	if ($applyMethod === 'GET') {
+		$applyUrlWithParams = $applyActionUrl;
+		if ($applyFields !== []) {
+			$applyUrlWithParams .= (str_contains($applyUrlWithParams, '?') ? '&' : '?') . http_build_query($applyFields);
+		}
+		$applyStep = curlRequest($ch, $applyUrlWithParams, [
+			CURLOPT_POST => false,
+			CURLOPT_HTTPGET => true,
+			CURLOPT_HTTPHEADER => $applyHeaders,
+		]);
+	} else {
+		$applyStep = curlRequest($ch, $applyActionUrl, [
+			CURLOPT_POST => true,
+			CURLOPT_HTTPGET => false,
+			CURLOPT_POSTFIELDS => http_build_query($applyFields),
+			CURLOPT_HTTPHEADER => $applyHeaders,
+		]);
+	}
+
+	$applyBody = (string) ($applyStep['body'] ?? '');
+	$applyHttpOk = $applyStep['errno'] === 0
+		&& (int) ($applyStep['statusCode'] ?? 0) >= 200
+		&& (int) ($applyStep['statusCode'] ?? 0) < 400;
+	$applyLooksSuccess = preg_match('/(application sent|request sent|success|accepted|submitted)/i', $applyBody) === 1;
+	$applyLooksError = preg_match('/(error|failed|forbidden|denied|cannot|already applied|not logged)/i', $applyBody) === 1;
+
+	$militaryUnitApplyResult = [
+		'attempted' => true,
+		'saved' => $applyHttpOk && ($applyLooksSuccess || (!$applyLooksError && trim($applyBody) !== '')),
+		'reason' => !$applyHttpOk
+			? ((int) ($applyStep['errno'] ?? 0) !== 0 ? 'military-unit-apply-request-error' : 'military-unit-apply-http-error')
+			: ($applyLooksSuccess ? 'military-unit-apply-submitted' : ($applyLooksError ? 'military-unit-apply-rejected' : 'military-unit-apply-processed')),
+		'httpStatus' => (int) ($applyStep['statusCode'] ?? 0),
+		'url' => (string) ($applyStep['effectiveUrl'] ?: $applyActionUrl),
+		'unitId' => trim((string) ($applyFields['id'] ?? '')),
+		'message' => trim((string) ($applyFields['message'] ?? '')),
+		'requestPayload' => $applyFields !== [] ? http_build_query($applyFields) : '',
+		'responseSnippet' => trim(substr(compactNodeText($applyBody), 0, 280)),
+		'responseHtml' => $applyBody,
+		'error' => (string) ($applyStep['error'] ?? ''),
+	];
 }
 
 if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) && $articleVoteRequested) {
@@ -3540,6 +3844,7 @@ $_SESSION['curl_last_login'] = [
 		'url' => (string) ($partyInspectResult['url'] ?? ''),
 		'partyName' => (string) ($partyInspectResult['partyName'] ?? ''),
 		'joinDetected' => (bool) ($partyInspectResult['joinDetected'] ?? false),
+		'leaveDetected' => (bool) ($partyInspectResult['leaveDetected'] ?? false),
 	],
 	'party_join_result' => [
 		'attempted' => (bool) ($partyJoinResult['attempted'] ?? false),
@@ -3548,6 +3853,14 @@ $_SESSION['curl_last_login'] = [
 		'httpStatus' => (int) ($partyJoinResult['httpStatus'] ?? 0),
 		'url' => (string) ($partyJoinResult['url'] ?? ''),
 		'partyName' => (string) ($partyJoinResult['partyName'] ?? ''),
+	],
+	'party_leave_result' => [
+		'attempted' => (bool) ($partyLeaveResult['attempted'] ?? false),
+		'saved' => (bool) ($partyLeaveResult['saved'] ?? false),
+		'reason' => (string) ($partyLeaveResult['reason'] ?? ''),
+		'httpStatus' => (int) ($partyLeaveResult['httpStatus'] ?? 0),
+		'url' => (string) ($partyLeaveResult['url'] ?? ''),
+		'partyName' => (string) ($partyLeaveResult['partyName'] ?? ''),
 	],
 	'storage_money_result' => [
 		'attempted' => (bool) ($storageMoneyResult['attempted'] ?? false),
@@ -3694,7 +4007,16 @@ $_SESSION['curl_last_login'] = [
 		'httpStatus' => (int) ($electionsInspectResult['httpStatus'] ?? 0),
 		'url' => (string) ($electionsInspectResult['url'] ?? ''),
 		'pageTitle' => (string) ($electionsInspectResult['pageTitle'] ?? ''),
+		'candidateActionUrl' => (string) ($electionsInspectResult['candidateActionUrl'] ?? ''),
 		'optionsCount' => is_array($electionsInspectResult['options'] ?? null) ? count((array) $electionsInspectResult['options']) : 0,
+	],
+	'elections_candidate_result' => [
+		'attempted' => (bool) ($electionsCandidateResult['attempted'] ?? false),
+		'saved' => (bool) ($electionsCandidateResult['saved'] ?? false),
+		'reason' => (string) ($electionsCandidateResult['reason'] ?? ''),
+		'httpStatus' => (int) ($electionsCandidateResult['httpStatus'] ?? 0),
+		'url' => (string) ($electionsCandidateResult['url'] ?? ''),
+		'presentation' => (string) ($electionsCandidateResult['presentation'] ?? ''),
 	],
 	'military_unit_inspect_result' => [
 		'attempted' => (bool) ($militaryUnitInspectResult['attempted'] ?? false),
@@ -3703,7 +4025,16 @@ $_SESSION['curl_last_login'] = [
 		'httpStatus' => (int) ($militaryUnitInspectResult['httpStatus'] ?? 0),
 		'url' => (string) ($militaryUnitInspectResult['url'] ?? ''),
 		'unitName' => (string) ($militaryUnitInspectResult['unitName'] ?? ''),
+		'applyDetected' => (bool) ($militaryUnitInspectResult['applyDetected'] ?? false),
 		'optionsCount' => is_array($militaryUnitInspectResult['options'] ?? null) ? count((array) $militaryUnitInspectResult['options']) : 0,
+	],
+	'military_unit_apply_result' => [
+		'attempted' => (bool) ($militaryUnitApplyResult['attempted'] ?? false),
+		'saved' => (bool) ($militaryUnitApplyResult['saved'] ?? false),
+		'reason' => (string) ($militaryUnitApplyResult['reason'] ?? ''),
+		'httpStatus' => (int) ($militaryUnitApplyResult['httpStatus'] ?? 0),
+		'url' => (string) ($militaryUnitApplyResult['url'] ?? ''),
+		'unitId' => (string) ($militaryUnitApplyResult['unitId'] ?? ''),
 	],
 	'product_market_result' => [
 		'attempted' => (bool) ($productMarketResult['attempted'] ?? false),
@@ -5198,6 +5529,93 @@ function extractPagePrimaryTitle(string $html): string
 	return $titleNode instanceof DOMElement ? compactNodeText((string) $titleNode->textContent) : '';
 }
 
+function extractElectionsCongressCandidateActionUrl(string $html, string $baseUrl): string
+{
+	if (trim($html) === '') {
+		return '';
+	}
+
+	if (preg_match('/Elections\.candidate\([^\)]*["\']([^"\']*congressElectionsCandidate[^"\']*)["\']/i', $html, $match) === 1) {
+		$raw = trim((string) ($match[1] ?? ''));
+		if ($raw !== '') {
+			return resolveUrl($baseUrl, $raw);
+		}
+	}
+
+	if (stripos($html, 'congressElectionsCandidate') !== false) {
+		return resolveUrl($baseUrl, 'congressElectionsCandidate');
+	}
+
+	return '';
+}
+
+function extractMilitaryUnitApplyFormFromHtml(string $html, string $baseUrl): array
+{
+	$result = [
+		'applyDetected' => false,
+		'applyActionUrl' => '',
+		'applyMethod' => 'POST',
+		'applyFields' => [],
+		'applyDefaultMessage' => '',
+	];
+
+	if (trim($html) === '') {
+		return $result;
+	}
+
+	$dom = new DOMDocument();
+	libxml_use_internal_errors(true);
+	$dom->loadHTML($html);
+	libxml_clear_errors();
+	$xpath = new DOMXPath($dom);
+
+	$formNode = $xpath->query('//form[contains(translate(@action, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "militaryunitsactions") and .//input[@name="action" and translate(@value, "abcdefghijklmnopqrstuvwxyz", "ABCDEFGHIJKLMNOPQRSTUVWXYZ")="SEND_APPLICATION"]]')->item(0);
+	if (!($formNode instanceof DOMElement)) {
+		return $result;
+	}
+
+	$actionRaw = trim((string) $formNode->getAttribute('action'));
+	$method = strtoupper(trim((string) $formNode->getAttribute('method')));
+	if ($method === '') {
+		$method = 'POST';
+	}
+
+	$fields = [];
+	$fieldNodes = $xpath->query('.//input | .//select | .//textarea', $formNode);
+	if ($fieldNodes instanceof DOMNodeList) {
+		foreach ($fieldNodes as $fieldNode) {
+			if (!($fieldNode instanceof DOMElement)) {
+				continue;
+			}
+			$fieldName = trim((string) $fieldNode->getAttribute('name'));
+			if ($fieldName === '') {
+				continue;
+			}
+
+			$tagName = strtolower($fieldNode->tagName);
+			$type = $tagName === 'input' ? strtolower(trim((string) $fieldNode->getAttribute('type'))) : $tagName;
+			if ($tagName === 'input' && in_array($type, ['button', 'submit', 'image', 'file'], true)) {
+				continue;
+			}
+
+			if ($tagName === 'textarea') {
+				$fields[$fieldName] = trim((string) $fieldNode->textContent);
+				continue;
+			}
+
+			$fields[$fieldName] = trim((string) $fieldNode->getAttribute('value'));
+		}
+	}
+
+	$result['applyDetected'] = true;
+	$result['applyActionUrl'] = resolveUrl($baseUrl, $actionRaw !== '' ? $actionRaw : 'militaryUnitsActions.html');
+	$result['applyMethod'] = $method;
+	$result['applyFields'] = $fields;
+	$result['applyDefaultMessage'] = trim((string) ($fields['message'] ?? ''));
+
+	return $result;
+}
+
 function extractLoginForm(string $html, string $baseUrl): array
 {
 	$dom = new DOMDocument();
@@ -5738,6 +6156,11 @@ function extractPartyJoinAvailabilityFromHtml(string $html, string $baseUrl): ar
 		'joinMethod' => '',
 		'joinFields' => [],
 		'joinIndicator' => '',
+		'leaveDetected' => false,
+		'hasLeaveForm' => false,
+		'leaveActionUrl' => '',
+		'leaveMethod' => '',
+		'leaveFields' => [],
 	];
 
 	if (trim($html) === '') {
@@ -5849,6 +6272,46 @@ function extractPartyJoinAvailabilityFromHtml(string $html, string $baseUrl): ar
 		if (str_contains($rawLower, 'join party') || str_contains($rawLower, 'join this party') || str_contains($rawLower, 'joinparty')) {
 			$result['joinIndicator'] = 'join-keyword-only';
 		}
+	}
+
+	$leaveFormNode = $xpath->query('//form[@id="command" and contains(translate(@action, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "partystatistics") and .//input[@name="action" and translate(@value, "abcdefghijklmnopqrstuvwxyz", "ABCDEFGHIJKLMNOPQRSTUVWXYZ")="LEAVE"]]')->item(0);
+	if ($leaveFormNode instanceof DOMElement) {
+		$result['hasLeaveForm'] = true;
+		$result['leaveDetected'] = true;
+		$leaveActionRaw = trim((string) $leaveFormNode->getAttribute('action'));
+		$result['leaveActionUrl'] = resolveUrl($baseUrl, $leaveActionRaw !== '' ? $leaveActionRaw : 'partyStatistics.html');
+		$leaveMethod = strtoupper(trim((string) $leaveFormNode->getAttribute('method')));
+		$result['leaveMethod'] = $leaveMethod !== '' ? $leaveMethod : 'POST';
+
+		$leaveFields = [];
+		$leaveFieldNodes = $xpath->query('.//input | .//select | .//textarea', $leaveFormNode);
+		if ($leaveFieldNodes instanceof DOMNodeList) {
+			foreach ($leaveFieldNodes as $leaveFieldNode) {
+				if (!($leaveFieldNode instanceof DOMElement)) {
+					continue;
+				}
+
+				$fieldName = trim((string) $leaveFieldNode->getAttribute('name'));
+				if ($fieldName === '') {
+					continue;
+				}
+
+				$tagName = strtolower($leaveFieldNode->tagName);
+				$type = $tagName === 'input' ? strtolower(trim((string) $leaveFieldNode->getAttribute('type'))) : $tagName;
+				if ($tagName === 'input' && in_array($type, ['button', 'submit', 'image', 'file'], true)) {
+					continue;
+				}
+
+				if ($tagName === 'textarea') {
+					$leaveFields[$fieldName] = trim((string) $leaveFieldNode->textContent);
+					continue;
+				}
+
+				$leaveFields[$fieldName] = trim((string) $leaveFieldNode->getAttribute('value'));
+			}
+		}
+
+		$result['leaveFields'] = $leaveFields;
 	}
 
 	$result['joinDetected'] = $result['hasJoinForm'] || $result['hasJoinButton'];
@@ -10358,6 +10821,7 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 				Registro detectado: <?= !empty($partyInspectResult['joinDetected']) ? 'SI' : 'NO' ?>
 				<?= !empty($partyInspectResult['hasJoinForm']) ? ' | Formulario SI' : ' | Formulario NO' ?>
 				<?= !empty($partyInspectResult['hasJoinButton']) ? ' | Boton SI' : ' | Boton NO' ?>
+				<?= !empty($partyInspectResult['leaveDetected']) ? ' | Salir detectado SI' : ' | Salir detectado NO' ?>
 				<?= !empty($partyInspectResult['joinMethod']) ? ' | Metodo ' . htmlspecialchars((string) $partyInspectResult['joinMethod'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
 				<?= !empty($partyInspectResult['joinActionUrl']) ? ' | Action ' . htmlspecialchars((string) $partyInspectResult['joinActionUrl'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
 				<?= !empty($partyInspectResult['joinIndicator']) ? ' | Indicador ' . htmlspecialchars((string) $partyInspectResult['joinIndicator'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
@@ -10367,6 +10831,10 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			$partyJoinFieldsEncoded = base64_encode((string) json_encode($partyJoinFields));
 			$partyJoinActionUrl = trim((string) ($partyInspectResult['joinActionUrl'] ?? ''));
 			$partyJoinMethod = trim((string) ($partyInspectResult['joinMethod'] ?? 'POST'));
+			$partyLeaveFields = is_array($partyInspectResult['leaveFields'] ?? null) ? (array) $partyInspectResult['leaveFields'] : [];
+			$partyLeaveFieldsEncoded = base64_encode((string) json_encode($partyLeaveFields));
+			$partyLeaveActionUrl = trim((string) ($partyInspectResult['leaveActionUrl'] ?? ''));
+			$partyLeaveMethod = trim((string) ($partyInspectResult['leaveMethod'] ?? 'POST'));
 			?>
 			<?php if (!empty($partyInspectResult['joinDetected']) && $partyJoinActionUrl !== ''): ?>
 				<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;padding:10px;border:1px solid #d7e0ee;border-radius:8px;background:#f8fbff;">
@@ -10379,6 +10847,17 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 					<input type="hidden" name="party_join_choice" value="yes">
 					<button type="submit" class="train-button">Unirse al Partido</button>
 					<span class="section-meta">Se envia POST directo con action JOIN e id detectado.</span>
+				</form>
+			<?php elseif (!empty($partyInspectResult['leaveDetected']) && $partyLeaveActionUrl !== ''): ?>
+				<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;padding:10px;border:1px solid #f0d5d5;border-radius:8px;background:#fff8f8;">
+					<input type="hidden" name="action" value="party-leave-now">
+					<input type="hidden" name="party_name" value="<?= htmlspecialchars((string) ($partyInspectResult['partyName'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+					<input type="hidden" name="party_url" value="<?= htmlspecialchars((string) ($partyInspectResult['url'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+					<input type="hidden" name="party_leave_action_url" value="<?= htmlspecialchars($partyLeaveActionUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+					<input type="hidden" name="party_leave_method" value="<?= htmlspecialchars($partyLeaveMethod, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+					<input type="hidden" name="party_leave_fields_encoded" value="<?= htmlspecialchars($partyLeaveFieldsEncoded, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+					<button type="submit" class="train-button" style="background:#b42318;border-color:#8f1c13;">Salir del Partido</button>
+					<span class="section-meta">Se envia el formulario LEAVE detectado en partyStatistics.html.</span>
 				</form>
 			<?php elseif (!empty($partyInspectResult['joinDetected'])): ?>
 				<p class="warn" style="margin:6px 0 0;">Se detecto control de union, pero sin action URL utilizable.</p>
@@ -10425,6 +10904,27 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 					<pre style="margin-top:8px;max-height:460px;overflow:auto;padding:10px;background:#f7f9fc;border:1px solid #d7e0ee;border-radius:8px;white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.35;"><?= htmlspecialchars((string) (($partyJoinResult['responseHtml'] ?? '') !== '' ? $partyJoinResult['responseHtml'] : '[respuesta vacia]'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></pre>
 				</details>
 			<?php endif; ?>
+		<?php endif; ?>
+
+		<?php if (!empty($partyLeaveResult['attempted'])): ?>
+			<p class="<?= !empty($partyLeaveResult['saved']) ? 'ok' : 'warn' ?>" style="margin:8px 0 0;">
+				Salir del partido: <?= htmlspecialchars((string) ($partyLeaveResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= !empty($partyLeaveResult['partyName']) ? ' | Partido ' . htmlspecialchars((string) $partyLeaveResult['partyName'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($partyLeaveResult['leaveMethod']) ? ' | Metodo ' . htmlspecialchars((string) $partyLeaveResult['leaveMethod'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($partyLeaveResult['leaveActionUrl']) ? ' | Action ' . htmlspecialchars((string) $partyLeaveResult['leaveActionUrl'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= isset($partyLeaveResult['httpStatus']) ? ' | HTTP ' . (int) $partyLeaveResult['httpStatus'] : '' ?>
+				<?= !empty($partyLeaveResult['error']) ? ' | Error cURL: ' . htmlspecialchars((string) $partyLeaveResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+			<?php if (!empty($partyLeaveResult['requestPayload'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Payload: <?= htmlspecialchars((string) $partyLeaveResult['requestPayload'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+			<?php if (!empty($partyLeaveResult['responseSnippet'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $partyLeaveResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+			<details style="margin-top:8px;">
+				<summary style="cursor:pointer;font-weight:600;color:#243c63;">Ver HTML respuesta de salir del partido</summary>
+				<pre style="margin-top:8px;max-height:460px;overflow:auto;padding:10px;background:#f7f9fc;border:1px solid #d7e0ee;border-radius:8px;white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.35;"><?= htmlspecialchars((string) (($partyLeaveResult['responseHtml'] ?? '') !== '' ? $partyLeaveResult['responseHtml'] : '[respuesta vacia]'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></pre>
+			</details>
 		<?php endif; ?>
 	</div>
 
@@ -10567,12 +11067,51 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			<?php if (!empty($electionsInspectResult['responseSnippet'])): ?>
 				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $electionsInspectResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
 			<?php endif; ?>
+			<?php
+			$candidateActionUrl = trim((string) ($electionsInspectResult['candidateActionUrl'] ?? ''));
+			if ($candidateActionUrl === '' && !empty($electionsInspectResult['url'])) {
+				$candidateActionUrl = resolveUrl((string) $electionsInspectResult['url'], 'congressElectionsCandidate');
+			}
+			$candidatePresentationInput = trim((string) ($_POST['elections_presentation'] ?? 'http://'));
+			if ($candidatePresentationInput === '') {
+				$candidatePresentationInput = 'http://';
+			}
+			?>
+			<?php if ($candidateActionUrl !== ''): ?>
+				<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding:10px;border:1px solid #d7e0ee;border-radius:8px;background:#f8fbff;">
+					<input type="hidden" name="action" value="elections-congress-candidate-now">
+					<input type="hidden" name="elections_url" value="<?= htmlspecialchars((string) ($electionsInspectResult['url'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+					<input type="hidden" name="elections_candidate_action_url" value="<?= htmlspecialchars($candidateActionUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+					<label for="elections_presentation_input"><strong>Enlace presentacion:</strong></label>
+					<input id="elections_presentation_input" type="text" name="elections_presentation" value="<?= htmlspecialchars($candidatePresentationInput, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" required style="min-width:320px;padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
+					<button type="submit" class="train-button" style="background:#0d8f49;border-color:#0b7a3e;">Postular candidatura al Congreso</button>
+				</form>
+			<?php endif; ?>
 			<?php if (!empty($electionsInspectResult['responseHtml'])): ?>
 				<details style="margin-top:8px;">
 					<summary style="cursor:pointer;font-weight:600;color:#243c63;">Ver HTML inspeccionado de elecciones</summary>
 					<pre style="margin-top:8px;max-height:460px;overflow:auto;padding:10px;background:#f7f9fc;border:1px solid #d7e0ee;border-radius:8px;white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.35;"><?= htmlspecialchars((string) $electionsInspectResult['responseHtml'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></pre>
 				</details>
 			<?php endif; ?>
+		<?php endif; ?>
+
+		<?php if (!empty($electionsCandidateResult['attempted'])): ?>
+			<p class="<?= !empty($electionsCandidateResult['saved']) ? 'ok' : 'warn' ?>" style="margin:8px 0 0;">
+				Candidatura Congreso: <?= htmlspecialchars((string) ($electionsCandidateResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= !empty($electionsCandidateResult['url']) ? ' | URL ' . htmlspecialchars((string) $electionsCandidateResult['url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= isset($electionsCandidateResult['httpStatus']) ? ' | HTTP ' . (int) $electionsCandidateResult['httpStatus'] : '' ?>
+				<?= !empty($electionsCandidateResult['error']) ? ' | Error: ' . htmlspecialchars((string) $electionsCandidateResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+			<?php if (!empty($electionsCandidateResult['requestPayload'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Payload: <?= htmlspecialchars((string) $electionsCandidateResult['requestPayload'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+			<?php if (!empty($electionsCandidateResult['responseSnippet'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $electionsCandidateResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+			<details style="margin-top:8px;">
+				<summary style="cursor:pointer;font-weight:600;color:#243c63;">Ver respuesta candidatura (raw)</summary>
+				<pre style="margin-top:8px;max-height:460px;overflow:auto;padding:10px;background:#f7f9fc;border:1px solid #d7e0ee;border-radius:8px;white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.35;"><?= htmlspecialchars((string) (($electionsCandidateResult['responseHtml'] ?? '') !== '' ? $electionsCandidateResult['responseHtml'] : '[respuesta vacia]'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></pre>
+			</details>
 		<?php endif; ?>
 	</div>
 
@@ -10627,12 +11166,55 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			<?php if (!empty($militaryUnitInspectResult['responseSnippet'])): ?>
 				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $militaryUnitInspectResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
 			<?php endif; ?>
+			<?php
+			$militaryApplyDetected = !empty($militaryUnitInspectResult['applyDetected']);
+			$militaryApplyActionUrl = trim((string) ($militaryUnitInspectResult['applyActionUrl'] ?? ''));
+			$militaryApplyMethod = trim((string) ($militaryUnitInspectResult['applyMethod'] ?? 'POST'));
+			$militaryApplyFields = is_array($militaryUnitInspectResult['applyFields'] ?? null) ? (array) $militaryUnitInspectResult['applyFields'] : [];
+			$militaryApplyFieldsEncoded = base64_encode((string) json_encode($militaryApplyFields));
+			$militaryApplyMessageInput = trim((string) ($_POST['military_unit_apply_message'] ?? (string) ($militaryUnitInspectResult['applyDefaultMessage'] ?? 'Comparte tu motivacion para unirte a esta MU.')));
+			if ($militaryApplyMessageInput === '') {
+				$militaryApplyMessageInput = 'Comparte tu motivacion para unirte a esta MU.';
+			}
+			?>
+			<?php if ($militaryApplyDetected && $militaryApplyActionUrl !== ''): ?>
+				<form method="post" style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin-top:10px;padding:10px;border:1px solid #d7e0ee;border-radius:8px;background:#f8fbff;">
+					<input type="hidden" name="action" value="military-unit-apply-now">
+					<input type="hidden" name="military_unit_url" value="<?= htmlspecialchars((string) ($militaryUnitInspectResult['url'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+					<input type="hidden" name="military_unit_apply_action_url" value="<?= htmlspecialchars($militaryApplyActionUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+					<input type="hidden" name="military_unit_apply_method" value="<?= htmlspecialchars($militaryApplyMethod, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+					<input type="hidden" name="military_unit_apply_fields_encoded" value="<?= htmlspecialchars($militaryApplyFieldsEncoded, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+					<label for="military_unit_apply_message_input"><strong>Motivacion:</strong></label>
+					<textarea id="military_unit_apply_message_input" name="military_unit_apply_message" rows="3" style="min-width:360px;max-width:100%;padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;"><?= htmlspecialchars($militaryApplyMessageInput, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></textarea>
+					<button type="submit" class="train-button" style="background:#0d8f49;border-color:#0b7a3e;">Postularme a la Unidad Militar</button>
+				</form>
+			<?php endif; ?>
 			<?php if (!empty($militaryUnitInspectResult['responseHtml'])): ?>
 				<details style="margin-top:8px;">
 					<summary style="cursor:pointer;font-weight:600;color:#243c63;">Ver HTML inspeccionado de unidad militar</summary>
 					<pre style="margin-top:8px;max-height:460px;overflow:auto;padding:10px;background:#f7f9fc;border:1px solid #d7e0ee;border-radius:8px;white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.35;"><?= htmlspecialchars((string) $militaryUnitInspectResult['responseHtml'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></pre>
 				</details>
 			<?php endif; ?>
+		<?php endif; ?>
+
+		<?php if (!empty($militaryUnitApplyResult['attempted'])): ?>
+			<p class="<?= !empty($militaryUnitApplyResult['saved']) ? 'ok' : 'warn' ?>" style="margin:8px 0 0;">
+				Postulacion MU: <?= htmlspecialchars((string) ($militaryUnitApplyResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= !empty($militaryUnitApplyResult['unitId']) ? ' | ID MU ' . htmlspecialchars((string) $militaryUnitApplyResult['unitId'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($militaryUnitApplyResult['url']) ? ' | URL ' . htmlspecialchars((string) $militaryUnitApplyResult['url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= isset($militaryUnitApplyResult['httpStatus']) ? ' | HTTP ' . (int) $militaryUnitApplyResult['httpStatus'] : '' ?>
+				<?= !empty($militaryUnitApplyResult['error']) ? ' | Error: ' . htmlspecialchars((string) $militaryUnitApplyResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+			<?php if (!empty($militaryUnitApplyResult['requestPayload'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Payload: <?= htmlspecialchars((string) $militaryUnitApplyResult['requestPayload'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+			<?php if (!empty($militaryUnitApplyResult['responseSnippet'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $militaryUnitApplyResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+			<details style="margin-top:8px;">
+				<summary style="cursor:pointer;font-weight:600;color:#243c63;">Ver respuesta postulacion MU (raw)</summary>
+				<pre style="margin-top:8px;max-height:460px;overflow:auto;padding:10px;background:#f7f9fc;border:1px solid #d7e0ee;border-radius:8px;white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.35;"><?= htmlspecialchars((string) (($militaryUnitApplyResult['responseHtml'] ?? '') !== '' ? $militaryUnitApplyResult['responseHtml'] : '[respuesta vacia]'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></pre>
+			</details>
 		<?php endif; ?>
 	</div>
 
