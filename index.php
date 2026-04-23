@@ -332,6 +332,10 @@ $articleVoteRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'article-vote-now';
 $articleSubscribeRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'article-subscribe-now';
+$electionsInspectRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+	&& (string) ($_POST['action'] ?? '') === 'elections-inspect-url';
+$militaryUnitInspectRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+	&& (string) ($_POST['action'] ?? '') === 'military-unit-inspect-url';
 $freeStarterPackClaimRequested = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 	&& (string) ($_POST['action'] ?? '') === 'free-starter-pack-claim';
 $trainAttempted = false;
@@ -632,7 +636,13 @@ $partyJoinResult = [
 	'partyName' => '',
 	'joinActionUrl' => '',
 	'joinMethod' => '',
+	'joinReferer' => '',
+	'joinChoice' => 'no',
+	'curlErrno' => 0,
+	'totalTime' => 0.0,
+	'requestPayload' => '',
 	'responseSnippet' => '',
+	'responseHtml' => '',
 	'error' => '',
 ];
 $storageMoneyUrl = 'https://vara.e-sim.org/storage.html?storageType=MONEY';
@@ -784,6 +794,30 @@ $articleSubscribeResult = [
 	'url' => '',
 	'articleId' => '',
 	'responseSnippet' => '',
+	'error' => '',
+];
+$electionsInspectResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => 'https://vara.e-sim.org/elections.html?electionType=CONGRESS',
+	'pageTitle' => '',
+	'options' => [],
+	'responseSnippet' => '',
+	'responseHtml' => '',
+	'error' => '',
+];
+$militaryUnitInspectResult = [
+	'attempted' => false,
+	'saved' => false,
+	'reason' => 'not-attempted',
+	'httpStatus' => 0,
+	'url' => 'https://vara.e-sim.org/militaryUnit.html?id=37',
+	'unitName' => '',
+	'options' => [],
+	'responseSnippet' => '',
+	'responseHtml' => '',
 	'error' => '',
 ];
 $tutorialMissionCompleteResult = [
@@ -1847,7 +1881,13 @@ if ($fatalError === '' && $partyJoinRequested) {
 		'partyName' => $partyName,
 		'joinActionUrl' => $joinActionUrl,
 		'joinMethod' => $joinMethod,
+		'joinReferer' => trim((string) ($_POST['party_url'] ?? '')),
+		'joinChoice' => $joinChoice,
+		'curlErrno' => 0,
+		'totalTime' => 0.0,
+		'requestPayload' => $joinFields !== [] ? http_build_query($joinFields) : '',
 		'responseSnippet' => '',
+		'responseHtml' => '',
 		'error' => '',
 	];
 
@@ -1906,7 +1946,13 @@ if ($fatalError === '' && $partyJoinRequested) {
 			'partyName' => $partyName,
 			'joinActionUrl' => $joinActionUrl,
 			'joinMethod' => $joinMethod,
+			'joinReferer' => $joinReferer,
+			'joinChoice' => $joinChoice,
+			'curlErrno' => (int) ($joinStep['errno'] ?? 0),
+			'totalTime' => (float) ($joinStep['totalTime'] ?? 0),
+			'requestPayload' => $joinFields !== [] ? http_build_query($joinFields) : '',
 			'responseSnippet' => trim(substr(compactNodeText($joinBody), 0, 280)),
+			'responseHtml' => $joinBody,
 			'error' => (string) ($joinStep['error'] ?? ''),
 		];
 	}
@@ -2237,6 +2283,100 @@ if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) &&
 			'subscribeActionUrl' => (string) ($articleInfo['subscribeActionUrl'] ?? ''),
 			'responseSnippet' => trim(substr(compactNodeText($articleBody), 0, 280)),
 			'error' => (string) ($articleStep['error'] ?? ''),
+		];
+	}
+}
+
+if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) && $electionsInspectRequested) {
+	$electionsUrlRaw = trim((string) ($_POST['elections_url'] ?? ''));
+	$electionsUrl = normalizeElectionsPageUrl($electionsUrlRaw, (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'));
+
+	$electionsInspectResult = [
+		'attempted' => true,
+		'saved' => false,
+		'reason' => $electionsUrl === '' ? 'elections-url-invalid' : 'elections-inspect-request-error',
+		'httpStatus' => 0,
+		'url' => $electionsUrl,
+		'pageTitle' => '',
+		'options' => [],
+		'responseSnippet' => '',
+		'responseHtml' => '',
+		'error' => '',
+	];
+
+	if ($electionsUrl !== '') {
+		$electionsStep = curlRequest($ch, $electionsUrl, [
+			CURLOPT_POST => false,
+			CURLOPT_HTTPGET => true,
+			CURLOPT_HTTPHEADER => $headers,
+		]);
+
+		$electionsBody = (string) ($electionsStep['body'] ?? '');
+		$electionsHttpOk = $electionsStep['errno'] === 0
+			&& (int) ($electionsStep['statusCode'] ?? 0) >= 200
+			&& (int) ($electionsStep['statusCode'] ?? 0) < 400
+			&& trim($electionsBody) !== '';
+
+		$electionsInspectResult = [
+			'attempted' => true,
+			'saved' => $electionsHttpOk,
+			'reason' => !$electionsHttpOk
+				? ((int) ($electionsStep['errno'] ?? 0) !== 0 ? 'elections-inspect-request-error' : 'elections-inspect-http-error')
+				: 'elections-inspected',
+			'httpStatus' => (int) ($electionsStep['statusCode'] ?? 0),
+			'url' => (string) ($electionsStep['effectiveUrl'] ?: $electionsUrl),
+			'pageTitle' => extractPagePrimaryTitle($electionsBody),
+			'options' => $electionsHttpOk ? extractPageActionOptionsFromHtml($electionsBody, (string) ($electionsStep['effectiveUrl'] ?: $electionsUrl)) : [],
+			'responseSnippet' => trim(substr(compactNodeText($electionsBody), 0, 280)),
+			'responseHtml' => $electionsBody,
+			'error' => (string) ($electionsStep['error'] ?? ''),
+		];
+	}
+}
+
+if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) && $militaryUnitInspectRequested) {
+	$militaryUnitUrlRaw = trim((string) ($_POST['military_unit_url'] ?? ''));
+	$militaryUnitUrl = normalizeMilitaryUnitPageUrl($militaryUnitUrlRaw, (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'));
+
+	$militaryUnitInspectResult = [
+		'attempted' => true,
+		'saved' => false,
+		'reason' => $militaryUnitUrl === '' ? 'military-unit-url-invalid' : 'military-unit-inspect-request-error',
+		'httpStatus' => 0,
+		'url' => $militaryUnitUrl,
+		'unitName' => '',
+		'options' => [],
+		'responseSnippet' => '',
+		'responseHtml' => '',
+		'error' => '',
+	];
+
+	if ($militaryUnitUrl !== '') {
+		$militaryUnitStep = curlRequest($ch, $militaryUnitUrl, [
+			CURLOPT_POST => false,
+			CURLOPT_HTTPGET => true,
+			CURLOPT_HTTPHEADER => $headers,
+		]);
+
+		$militaryUnitBody = (string) ($militaryUnitStep['body'] ?? '');
+		$militaryUnitHttpOk = $militaryUnitStep['errno'] === 0
+			&& (int) ($militaryUnitStep['statusCode'] ?? 0) >= 200
+			&& (int) ($militaryUnitStep['statusCode'] ?? 0) < 400
+			&& trim($militaryUnitBody) !== '';
+
+		$militaryUnitInspectResult = [
+			'attempted' => true,
+			'saved' => $militaryUnitHttpOk,
+			'reason' => !$militaryUnitHttpOk
+				? ((int) ($militaryUnitStep['errno'] ?? 0) !== 0 ? 'military-unit-inspect-request-error' : 'military-unit-inspect-http-error')
+				: 'military-unit-inspected',
+			'httpStatus' => (int) ($militaryUnitStep['statusCode'] ?? 0),
+			'url' => (string) ($militaryUnitStep['effectiveUrl'] ?: $militaryUnitUrl),
+			'unitName' => extractPagePrimaryTitle($militaryUnitBody),
+			'options' => $militaryUnitHttpOk ? extractPageActionOptionsFromHtml($militaryUnitBody, (string) ($militaryUnitStep['effectiveUrl'] ?: $militaryUnitUrl)) : [],
+			'responseSnippet' => trim(substr(compactNodeText($militaryUnitBody), 0, 280)),
+			'responseHtml' => $militaryUnitBody,
+			'error' => (string) ($militaryUnitStep['error'] ?? ''),
 		];
 	}
 }
@@ -3546,6 +3686,24 @@ $_SESSION['curl_last_login'] = [
 		'httpStatus' => (int) ($articleSubscribeResult['httpStatus'] ?? 0),
 		'url' => (string) ($articleSubscribeResult['url'] ?? ''),
 		'articleId' => (string) ($articleSubscribeResult['articleId'] ?? ''),
+	],
+	'elections_inspect_result' => [
+		'attempted' => (bool) ($electionsInspectResult['attempted'] ?? false),
+		'saved' => (bool) ($electionsInspectResult['saved'] ?? false),
+		'reason' => (string) ($electionsInspectResult['reason'] ?? ''),
+		'httpStatus' => (int) ($electionsInspectResult['httpStatus'] ?? 0),
+		'url' => (string) ($electionsInspectResult['url'] ?? ''),
+		'pageTitle' => (string) ($electionsInspectResult['pageTitle'] ?? ''),
+		'optionsCount' => is_array($electionsInspectResult['options'] ?? null) ? count((array) $electionsInspectResult['options']) : 0,
+	],
+	'military_unit_inspect_result' => [
+		'attempted' => (bool) ($militaryUnitInspectResult['attempted'] ?? false),
+		'saved' => (bool) ($militaryUnitInspectResult['saved'] ?? false),
+		'reason' => (string) ($militaryUnitInspectResult['reason'] ?? ''),
+		'httpStatus' => (int) ($militaryUnitInspectResult['httpStatus'] ?? 0),
+		'url' => (string) ($militaryUnitInspectResult['url'] ?? ''),
+		'unitName' => (string) ($militaryUnitInspectResult['unitName'] ?? ''),
+		'optionsCount' => is_array($militaryUnitInspectResult['options'] ?? null) ? count((array) $militaryUnitInspectResult['options']) : 0,
 	],
 	'product_market_result' => [
 		'attempted' => (bool) ($productMarketResult['attempted'] ?? false),
@@ -4875,6 +5033,169 @@ function submitArticleSubscribe($ch, string $articleUrl, array $defaultHeaders, 
 		'responseSnippet' => trim(substr(compactNodeText((string) (($lastStep['body'] ?? ''))), 0, 280)),
 		'error' => (string) (($lastStep['error'] ?? '')),
 	];
+}
+
+function normalizeElectionsPageUrl(string $rawUrl, string $fallbackBaseUrl = 'https://vara.e-sim.org/index.html'): string
+{
+	$raw = trim(html_entity_decode($rawUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+	if ($raw === '') {
+		return 'https://vara.e-sim.org/elections.html?electionType=CONGRESS';
+	}
+
+	$resolved = preg_match('/^https?:\/\//i', $raw) === 1
+		? $raw
+		: resolveUrl($fallbackBaseUrl, $raw);
+
+	if (!str_contains(strtolower($resolved), '/elections.html')) {
+		return '';
+	}
+
+	if (!str_contains(strtolower($resolved), 'electiontype=')) {
+		$resolved .= (str_contains($resolved, '?') ? '&' : '?') . 'electionType=CONGRESS';
+	}
+
+	return $resolved;
+}
+
+function normalizeMilitaryUnitPageUrl(string $rawUrl, string $fallbackBaseUrl = 'https://vara.e-sim.org/index.html'): string
+{
+	$raw = trim(html_entity_decode($rawUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+	if ($raw === '') {
+		return '';
+	}
+
+	if (preg_match('/^\d+$/', $raw) === 1) {
+		return 'https://vara.e-sim.org/militaryUnit.html?id=' . $raw;
+	}
+
+	$resolved = preg_match('/^https?:\/\//i', $raw) === 1
+		? $raw
+		: resolveUrl($fallbackBaseUrl, $raw);
+
+	if (!str_contains(strtolower($resolved), '/militaryunit.html')) {
+		return '';
+	}
+
+	return $resolved;
+}
+
+function extractPageActionOptionsFromHtml(string $html, string $baseUrl): array
+{
+	if (trim($html) === '') {
+		return [];
+	}
+
+	$dom = new DOMDocument();
+	libxml_use_internal_errors(true);
+	$dom->loadHTML($html);
+	libxml_clear_errors();
+	$xpath = new DOMXPath($dom);
+
+	$options = [];
+	$seen = [];
+
+	$formNodes = $xpath->query('//form');
+	if ($formNodes instanceof DOMNodeList) {
+		foreach ($formNodes as $formNode) {
+			if (!($formNode instanceof DOMElement)) {
+				continue;
+			}
+
+			$action = trim((string) $formNode->getAttribute('action'));
+			$method = strtoupper(trim((string) $formNode->getAttribute('method')));
+			if ($method === '') {
+				$method = 'POST';
+			}
+			$resolvedAction = $action !== '' ? resolveUrl($baseUrl, $action) : '';
+			$id = trim((string) $formNode->getAttribute('id'));
+			$name = trim((string) $formNode->getAttribute('name'));
+
+			$fieldNames = [];
+			$inputNodes = $xpath->query('.//input[@name] | .//select[@name] | .//textarea[@name]', $formNode);
+			if ($inputNodes instanceof DOMNodeList) {
+				foreach ($inputNodes as $inputNode) {
+					if (!($inputNode instanceof DOMElement)) {
+						continue;
+					}
+					$fieldName = trim((string) $inputNode->getAttribute('name'));
+					if ($fieldName !== '') {
+						$fieldNames[] = $fieldName;
+					}
+				}
+			}
+
+			$key = 'form|' . $resolvedAction . '|' . $method . '|' . implode(',', $fieldNames);
+			if (isset($seen[$key])) {
+				continue;
+			}
+			$seen[$key] = true;
+
+			$options[] = [
+				'type' => 'form',
+				'label' => trim($id !== '' ? ('#' . $id) : $name),
+				'action' => $resolvedAction,
+				'method' => $method,
+				'fields' => array_values(array_unique($fieldNames)),
+			];
+			if (count($options) >= 40) {
+				break;
+			}
+		}
+	}
+
+	if (count($options) < 40) {
+		$linkNodes = $xpath->query('//a[@href]');
+		if ($linkNodes instanceof DOMNodeList) {
+			foreach ($linkNodes as $linkNode) {
+				if (!($linkNode instanceof DOMElement)) {
+					continue;
+				}
+				$href = trim((string) $linkNode->getAttribute('href'));
+				if ($href === '' || $href === '#') {
+					continue;
+				}
+				$resolvedHref = resolveUrl($baseUrl, $href);
+				$linkText = trim(substr(compactNodeText((string) $linkNode->textContent), 0, 120));
+				$key = 'link|' . $resolvedHref . '|' . $linkText;
+				if (isset($seen[$key])) {
+					continue;
+				}
+				$seen[$key] = true;
+				$options[] = [
+					'type' => 'link',
+					'label' => $linkText,
+					'action' => $resolvedHref,
+					'method' => 'GET',
+					'fields' => [],
+				];
+				if (count($options) >= 40) {
+					break;
+				}
+			}
+		}
+	}
+
+	return $options;
+}
+
+function extractPagePrimaryTitle(string $html): string
+{
+	if (trim($html) === '') {
+		return '';
+	}
+
+	$dom = new DOMDocument();
+	libxml_use_internal_errors(true);
+	$dom->loadHTML($html);
+	libxml_clear_errors();
+	$xpath = new DOMXPath($dom);
+
+	$titleNode = $xpath->query('//h1[normalize-space(string(.))!=""][1]')->item(0);
+	if (!($titleNode instanceof DOMElement)) {
+		$titleNode = $xpath->query('//h2[normalize-space(string(.))!=""][1]')->item(0);
+	}
+
+	return $titleNode instanceof DOMElement ? compactNodeText((string) $titleNode->textContent) : '';
 }
 
 function extractLoginForm(string $html, string $baseUrl): array
@@ -10085,10 +10406,28 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 				<?= !empty($partyJoinResult['joinMethod']) ? ' | Metodo ' . htmlspecialchars((string) $partyJoinResult['joinMethod'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
 				<?= !empty($partyJoinResult['joinActionUrl']) ? ' | Action ' . htmlspecialchars((string) $partyJoinResult['joinActionUrl'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
 				<?= isset($partyJoinResult['httpStatus']) ? ' | HTTP ' . (int) $partyJoinResult['httpStatus'] : '' ?>
+				<?= isset($partyJoinResult['curlErrno']) ? ' | errno ' . (int) $partyJoinResult['curlErrno'] : '' ?>
+				<?= isset($partyJoinResult['totalTime']) ? ' | tiempo ' . number_format((float) $partyJoinResult['totalTime'], 3) . 's' : '' ?>
 				<?= !empty($partyJoinResult['error']) ? ' | Error cURL: ' . htmlspecialchars((string) $partyJoinResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
 			</p>
+			<?php if (($partyJoinResult['reason'] ?? '') === 'party-join-not-confirmed'): ?>
+				<p class="section-meta" style="margin:6px 0 0;">No se envio POST. En "Confirmar union" se mantuvo "No, solo preparar".</p>
+			<?php endif; ?>
+			<?php if (!empty($partyJoinResult['joinReferer']) || !empty($partyJoinResult['requestPayload'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">
+					<?= !empty($partyJoinResult['joinReferer']) ? 'Referer: ' . htmlspecialchars((string) $partyJoinResult['joinReferer'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+					<?= !empty($partyJoinResult['joinReferer']) && !empty($partyJoinResult['requestPayload']) ? ' | ' : '' ?>
+					<?= !empty($partyJoinResult['requestPayload']) ? 'Payload: ' . htmlspecialchars((string) $partyJoinResult['requestPayload'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				</p>
+			<?php endif; ?>
 			<?php if (!empty($partyJoinResult['responseSnippet'])): ?>
 				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $partyJoinResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+			<?php if (!empty($partyJoinResult['responseHtml'])): ?>
+				<details style="margin-top:8px;">
+					<summary style="cursor:pointer;font-weight:600;color:#243c63;">Ver HTML respuesta de unirse al partido</summary>
+					<pre style="margin-top:8px;max-height:460px;overflow:auto;padding:10px;background:#f7f9fc;border:1px solid #d7e0ee;border-radius:8px;white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.35;"><?= htmlspecialchars((string) $partyJoinResult['responseHtml'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></pre>
+				</details>
 			<?php endif; ?>
 		<?php endif; ?>
 	</div>
@@ -10177,6 +10516,126 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			</p>
 			<?php if (!empty($articleSubscribeResult['responseSnippet'])): ?>
 				<p class="section-meta" style="margin:6px 0 0;">Respuesta suscripcion: <?= htmlspecialchars((string) $articleSubscribeResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+		<?php endif; ?>
+	</div>
+
+	<div class="section-panel">
+		<h2 class="section-title">Elecciones (Inspect)</h2>
+		<p class="section-meta" style="margin:0;">Inspecciona el HTML de elecciones para identificar el formulario de candidatura.</p>
+		<?php
+		$electionsUrlInput = trim((string) ($_POST['elections_url'] ?? ''));
+		if ($electionsUrlInput === '') {
+			$electionsUrlInput = 'https://vara.e-sim.org/elections.html?electionType=CONGRESS';
+		}
+		?>
+		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+			<input type="hidden" name="action" value="elections-inspect-url">
+			<label for="elections_url_input"><strong>URL elecciones:</strong></label>
+			<input id="elections_url_input" type="url" name="elections_url" value="<?= htmlspecialchars($electionsUrlInput, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" required style="min-width:380px;padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
+			<button type="submit" class="train-button">Inspeccionar elecciones</button>
+		</form>
+
+		<?php if (!empty($electionsInspectResult['attempted'])): ?>
+			<p class="<?= !empty($electionsInspectResult['saved']) ? 'ok' : 'warn' ?>" style="margin:8px 0 0;">
+				Inspeccion elecciones: <?= htmlspecialchars((string) ($electionsInspectResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= !empty($electionsInspectResult['pageTitle']) ? ' | Titulo ' . htmlspecialchars((string) $electionsInspectResult['pageTitle'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($electionsInspectResult['url']) ? ' | URL ' . htmlspecialchars((string) $electionsInspectResult['url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= isset($electionsInspectResult['httpStatus']) ? ' | HTTP ' . (int) $electionsInspectResult['httpStatus'] : '' ?>
+				<?= isset($electionsInspectResult['options']) && is_array($electionsInspectResult['options']) ? ' | Opciones ' . count((array) $electionsInspectResult['options']) : '' ?>
+				<?= !empty($electionsInspectResult['error']) ? ' | Error cURL: ' . htmlspecialchars((string) $electionsInspectResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+			<?php if (!empty($electionsInspectResult['options']) && is_array($electionsInspectResult['options'])): ?>
+				<div style="margin-top:8px;padding:10px;border:1px solid #d7e0ee;border-radius:8px;background:#f8fbff;">
+					<p style="margin:0 0 6px;"><strong>Opciones detectadas (forms/links):</strong></p>
+					<ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;">
+						<?php foreach ((array) ($electionsInspectResult['options'] ?? []) as $inspectOption): ?>
+							<?php
+							$optType = trim((string) ($inspectOption['type'] ?? ''));
+							$optLabel = trim((string) ($inspectOption['label'] ?? ''));
+							$optMethod = trim((string) ($inspectOption['method'] ?? ''));
+							$optAction = trim((string) ($inspectOption['action'] ?? ''));
+							$optFields = is_array($inspectOption['fields'] ?? null) ? (array) $inspectOption['fields'] : [];
+							?>
+							<li>
+								<?= htmlspecialchars($optType !== '' ? strtoupper($optType) : 'OPTION', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+								<?= $optLabel !== '' ? ' | ' . htmlspecialchars($optLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+								<?= $optMethod !== '' ? ' | ' . htmlspecialchars($optMethod, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+								<?= $optAction !== '' ? ' | ' . htmlspecialchars($optAction, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+								<?= !empty($optFields) ? ' | fields: ' . htmlspecialchars(implode(', ', $optFields), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+							</li>
+						<?php endforeach; ?>
+					</ul>
+				</div>
+			<?php endif; ?>
+			<?php if (!empty($electionsInspectResult['responseSnippet'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $electionsInspectResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+			<?php if (!empty($electionsInspectResult['responseHtml'])): ?>
+				<details style="margin-top:8px;">
+					<summary style="cursor:pointer;font-weight:600;color:#243c63;">Ver HTML inspeccionado de elecciones</summary>
+					<pre style="margin-top:8px;max-height:460px;overflow:auto;padding:10px;background:#f7f9fc;border:1px solid #d7e0ee;border-radius:8px;white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.35;"><?= htmlspecialchars((string) $electionsInspectResult['responseHtml'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></pre>
+				</details>
+			<?php endif; ?>
+		<?php endif; ?>
+	</div>
+
+	<div class="section-panel">
+		<h2 class="section-title">Unidad Militar (Inspect)</h2>
+		<p class="section-meta" style="margin:0;">Inspecciona la unidad militar para listar acciones disponibles y ver su HTML.</p>
+		<?php
+		$militaryUnitUrlInput = trim((string) ($_POST['military_unit_url'] ?? ''));
+		if ($militaryUnitUrlInput === '') {
+			$militaryUnitUrlInput = 'https://vara.e-sim.org/militaryUnit.html?id=37';
+		}
+		?>
+		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+			<input type="hidden" name="action" value="military-unit-inspect-url">
+			<label for="military_unit_url_input"><strong>URL unidad:</strong></label>
+			<input id="military_unit_url_input" type="url" name="military_unit_url" value="<?= htmlspecialchars($militaryUnitUrlInput, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" required style="min-width:380px;padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
+			<button type="submit" class="train-button">Inspeccionar unidad militar</button>
+		</form>
+
+		<?php if (!empty($militaryUnitInspectResult['attempted'])): ?>
+			<p class="<?= !empty($militaryUnitInspectResult['saved']) ? 'ok' : 'warn' ?>" style="margin:8px 0 0;">
+				Inspeccion unidad militar: <?= htmlspecialchars((string) ($militaryUnitInspectResult['reason'] ?? 'unknown'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+				<?= !empty($militaryUnitInspectResult['unitName']) ? ' | Unidad ' . htmlspecialchars((string) $militaryUnitInspectResult['unitName'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= !empty($militaryUnitInspectResult['url']) ? ' | URL ' . htmlspecialchars((string) $militaryUnitInspectResult['url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+				<?= isset($militaryUnitInspectResult['httpStatus']) ? ' | HTTP ' . (int) $militaryUnitInspectResult['httpStatus'] : '' ?>
+				<?= isset($militaryUnitInspectResult['options']) && is_array($militaryUnitInspectResult['options']) ? ' | Opciones ' . count((array) $militaryUnitInspectResult['options']) : '' ?>
+				<?= !empty($militaryUnitInspectResult['error']) ? ' | Error cURL: ' . htmlspecialchars((string) $militaryUnitInspectResult['error'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+			</p>
+			<?php if (!empty($militaryUnitInspectResult['options']) && is_array($militaryUnitInspectResult['options'])): ?>
+				<div style="margin-top:8px;padding:10px;border:1px solid #d7e0ee;border-radius:8px;background:#f8fbff;">
+					<p style="margin:0 0 6px;"><strong>Opciones detectadas (forms/links):</strong></p>
+					<ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;">
+						<?php foreach ((array) ($militaryUnitInspectResult['options'] ?? []) as $inspectOption): ?>
+							<?php
+							$optType = trim((string) ($inspectOption['type'] ?? ''));
+							$optLabel = trim((string) ($inspectOption['label'] ?? ''));
+							$optMethod = trim((string) ($inspectOption['method'] ?? ''));
+							$optAction = trim((string) ($inspectOption['action'] ?? ''));
+							$optFields = is_array($inspectOption['fields'] ?? null) ? (array) $inspectOption['fields'] : [];
+							?>
+							<li>
+								<?= htmlspecialchars($optType !== '' ? strtoupper($optType) : 'OPTION', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+								<?= $optLabel !== '' ? ' | ' . htmlspecialchars($optLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+								<?= $optMethod !== '' ? ' | ' . htmlspecialchars($optMethod, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+								<?= $optAction !== '' ? ' | ' . htmlspecialchars($optAction, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+								<?= !empty($optFields) ? ' | fields: ' . htmlspecialchars(implode(', ', $optFields), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '' ?>
+							</li>
+						<?php endforeach; ?>
+					</ul>
+				</div>
+			<?php endif; ?>
+			<?php if (!empty($militaryUnitInspectResult['responseSnippet'])): ?>
+				<p class="section-meta" style="margin:6px 0 0;">Respuesta: <?= htmlspecialchars((string) $militaryUnitInspectResult['responseSnippet'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+			<?php endif; ?>
+			<?php if (!empty($militaryUnitInspectResult['responseHtml'])): ?>
+				<details style="margin-top:8px;">
+					<summary style="cursor:pointer;font-weight:600;color:#243c63;">Ver HTML inspeccionado de unidad militar</summary>
+					<pre style="margin-top:8px;max-height:460px;overflow:auto;padding:10px;background:#f7f9fc;border:1px solid #d7e0ee;border-radius:8px;white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.35;"><?= htmlspecialchars((string) $militaryUnitInspectResult['responseHtml'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></pre>
+				</details>
 			<?php endif; ?>
 		<?php endif; ?>
 	</div>
