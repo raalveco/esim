@@ -1824,6 +1824,20 @@ if ($fatalError === '' && $partyJoinRequested) {
 		$joinFields = [];
 	}
 
+	$joinFieldAction = strtoupper(trim((string) ($joinFields['action'] ?? '')));
+	$joinFieldId = preg_replace('/\D+/', '', trim((string) ($joinFields['id'] ?? '')));
+	if ($joinFieldAction === 'JOIN' && $joinFieldId !== '') {
+		$joinMethod = 'POST';
+		$joinActionUrl = resolveUrl(
+			$joinActionUrl !== '' ? $joinActionUrl : 'https://vara.e-sim.org/partyStatistics.html',
+			'partyStatistics.html'
+		);
+		$joinFields = [
+			'action' => 'JOIN',
+			'id' => $joinFieldId,
+		];
+	}
+
 	$partyJoinResult = [
 		'attempted' => true,
 		'saved' => false,
@@ -5420,7 +5434,10 @@ function extractPartyJoinAvailabilityFromHtml(string $html, string $baseUrl): ar
 		$result['partyName'] = compactNodeText((string) $partyTitleNode->textContent);
 	}
 
-	$formNodes = $xpath->query('//form[contains(translate(@action, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "join") or .//input[@name="action" and contains(translate(@value, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "join")]]');
+	$formNodes = $xpath->query('//form[@id="command" and contains(translate(@action, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "partystatistics") and .//input[@name="action" and translate(@value, "abcdefghijklmnopqrstuvwxyz", "ABCDEFGHIJKLMNOPQRSTUVWXYZ")="JOIN"]]');
+	if (!($formNodes instanceof DOMNodeList) || $formNodes->length === 0) {
+		$formNodes = $xpath->query('//form[contains(translate(@action, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "join") or .//input[@name="action" and contains(translate(@value, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "join")]]');
+	}
 	if ($formNodes && $formNodes->length > 0) {
 		$formNode = $formNodes->item(0);
 		if ($formNode instanceof DOMElement) {
@@ -5485,7 +5502,9 @@ function extractPartyJoinAvailabilityFromHtml(string $html, string $baseUrl): ar
 			}
 
 			$result['joinFields'] = $fields;
-			$result['joinIndicator'] = 'join-form';
+			$hasJoinCommandPattern = strtoupper(trim((string) ($fields['action'] ?? ''))) === 'JOIN'
+				&& preg_match('/^\d+$/', (string) ($fields['id'] ?? '')) === 1;
+			$result['joinIndicator'] = $hasJoinCommandPattern ? 'join-command-form' : 'join-form';
 		}
 	}
 
