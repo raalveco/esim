@@ -165,10 +165,38 @@ function envToBool(?string $value, bool $default = false): bool
 $envPath = __DIR__ . DIRECTORY_SEPARATOR . '.env';
 $env = loadDotEnv($envPath);
 
-$baseUrl = (string) ($env['ESIM_BASE_URL'] ?? 'https://vara.e-sim.org/index.html');
-$username = (string) ($env['ESIM_USERNAME'] ?? '');
-$password = (string) ($env['ESIM_PASSWORD'] ?? '');
-$userId = (string) ($env['ESIM_USER_ID'] ?? '');
+$scriptFilePath = (string) ($_SERVER['SCRIPT_FILENAME'] ?? __FILE__);
+$serverFromFile = strtolower(trim((string) pathinfo($scriptFilePath, PATHINFO_FILENAME)));
+$serverFromFile = preg_replace('/[^a-z0-9-]/', '', $serverFromFile);
+
+if($serverFromFile === '' || $serverFromFile === 'index') {
+	$serverFromFile = 'vara';
+}
+
+$server = $serverFromFile;
+
+$serverBaseUrl = 'https://' . $server . '.e-sim.org/';
+
+function serverUrl(string $path = ''): string
+{
+	global $serverBaseUrl;
+	global $server;
+
+	$base = is_string($serverBaseUrl) && trim($serverBaseUrl) !== ''
+		? rtrim($serverBaseUrl, '/') . '/'
+		: ('https://'. $server . '.e-sim.org/');
+
+	if (trim($path) === '') {
+		return $base;
+	}
+
+	return $base . ltrim($path, '/');
+}
+
+$baseUrl = serverUrl('index.html');
+$username = (string) ($env[strtoupper($server) . '_ESIM_USERNAME'] ?? '');
+$password = (string) ($env[strtoupper($server) . '_ESIM_PASSWORD'] ?? '');
+$userId = (string) ($env[strtoupper($server) . '_ESIM_USER_ID'] ?? '');
 $allowAutoRegistration = envToBool($env['ESIM_ALLOW_AUTO_REGISTRATION'] ?? null, false);
 
 $cookieDir = __DIR__ . DIRECTORY_SEPARATOR . 'tmp';
@@ -188,7 +216,7 @@ if ($cookieSuffix === '') {
 	$cookieSuffix = 'default';
 }
 
-$defaultCookieFile = $cookieDir . DIRECTORY_SEPARATOR . 'vara_cookie_' . $cookieSuffix . '.txt';
+$defaultCookieFile = $cookieDir . DIRECTORY_SEPARATOR . $server . '_cookie_' . $cookieSuffix . '.txt';
 $cookieFile = $defaultCookieFile;
 $_SESSION['curl_cookie_file'] = $cookieFile;
 
@@ -432,7 +460,7 @@ $battleDetailsCache = [];
 if (isset($_SESSION['battle_details_cache']) && is_array($_SESSION['battle_details_cache'])) {
 	$battleDetailsCache = $_SESSION['battle_details_cache'];
 }
-$battlesUrl = 'https://vara.e-sim.org/battles.html?countryId=-1&page=1';
+$battlesUrl = serverUrl('battles.html?countryId=-1&page=1');
 $battlesResult = [
 	'attempted' => false,
 	'saved' => false,
@@ -444,7 +472,7 @@ $battlesResult = [
 	'pagesScanned' => 0,
 	'practiceFound' => false,
 ];
-$workplaceUrl = 'https://vara.e-sim.org/work2.html';
+$workplaceUrl = serverUrl('work2.html');
 $workplaceResult = [
 	'attempted' => false,
 	'saved' => false,
@@ -530,7 +558,7 @@ $regionsCatalogManualStatus = [
 	'regionCount' => 0,
 	'path' => $regionsCatalogManualPath,
 ];
-$notificationsUrl = 'https://vara.e-sim.org/notifications.html';
+$notificationsUrl = serverUrl('notifications.html');
 $notificationsResult = [
 	'attempted' => false,
 	'saved' => false,
@@ -542,7 +570,7 @@ $notificationsResult = [
 	'itemsCount' => 0,
 	'error' => '',
 ];
-$dailiesUrl = 'https://vara.e-sim.org/missionCenter/dailies';
+$dailiesUrl = serverUrl('missionCenter/dailies');
 $dailiesResult = [
 	'attempted' => false,
 	'saved' => false,
@@ -571,7 +599,7 @@ $changeEmailResult = [
 	'saved' => false,
 	'reason' => 'not-attempted',
 	'httpStatus' => 0,
-	'url' => 'https://vara.e-sim.org/editCitizen.html',
+	'url' => serverUrl('editCitizen.html'),
 	'email' => '',
 	'responseSnippet' => '',
 	'error' => '',
@@ -581,7 +609,7 @@ $registeredEmailResult = [
 	'saved' => false,
 	'reason' => 'not-attempted',
 	'httpStatus' => 0,
-	'url' => 'https://vara.e-sim.org/editCitizen.html?editCitizenPage=PERSONAL_DATA',
+	'url' => serverUrl('editCitizen.html?editCitizenPage=PERSONAL_DATA'),
 	'email' => '',
 	'error' => '',
 ];
@@ -590,7 +618,7 @@ $resendConfirmationMailResult = [
 	'saved' => false,
 	'reason' => 'not-attempted',
 	'httpStatus' => 0,
-	'url' => 'https://vara.e-sim.org/resendConfirmationMail.html',
+	'url' => serverUrl('resendConfirmationMail.html'),
 	'responseSnippet' => '',
 	'error' => '',
 ];
@@ -610,7 +638,7 @@ $partyStatusCheckResult = [
 	'saved' => false,
 	'reason' => 'not-attempted',
 	'httpStatus' => 0,
-	'url' => 'https://vara.e-sim.org/myParty.html',
+	'url' => serverUrl('myParty.html'),
 	'needsEmailConfirmation' => false,
 	'responseSnippet' => '',
 	'error' => '',
@@ -670,7 +698,7 @@ $partyLeaveResult = [
 	'responseHtml' => '',
 	'error' => '',
 ];
-$storageMoneyUrl = 'https://vara.e-sim.org/storage.html?storageType=MONEY';
+$storageMoneyUrl = serverUrl('storage.html?storageType=MONEY');
 $storageMoneyResult = [
 	'attempted' => false,
 	'saved' => false,
@@ -682,8 +710,8 @@ $storageMoneyResult = [
 	'accountsCount' => 0,
 	'error' => '',
 ];
-$storageEquipmentUrl = 'https://vara.e-sim.org/storage.html?storageType=EQUIPMENT';
-$storageEquipmentListUrl = 'https://vara.e-sim.org/storage/equipmentList';
+$storageEquipmentUrl = serverUrl('storage.html?storageType=EQUIPMENT');
+$storageEquipmentListUrl = serverUrl('storage/equipmentList');
 $storageEquipmentResult = [
 	'attempted' => false,
 	'saved' => false,
@@ -716,7 +744,7 @@ $freeStarterPackResult = [
 	'found' => false,
 	'claimButtonFound' => false,
 	'source' => '',
-	'openUrl' => 'https://vara.e-sim.org/shop.html?shopType=PROMOTIONS',
+	'openUrl' => serverUrl('shop.html?shopType=PROMOTIONS'),
 	'claimUrl' => '',
 	'reason' => 'not-checked',
 ];
@@ -753,7 +781,7 @@ $tutorialMissionState = [
 	'selectedMissionDescription' => '',
 	'inProgressSummary' => '',
 	'hasRewardMissionForm' => false,
-	'rewardActionUrl' => 'https://vara.e-sim.org/betaMissions.html',
+	'rewardActionUrl' => serverUrl('betaMissions.html'),
 	'rewardMethod' => 'POST',
 	'rewardFields' => [],
 	'hasSkipOption' => false,
@@ -763,7 +791,7 @@ $tutorialMissionState = [
 	'availableMissionCount' => 0,
 	'reason' => 'not-checked',
 ];
-$auctionsUrl = 'https://vara.e-sim.org/auctions.html';
+$auctionsUrl = serverUrl('auctions.html');
 $auctionMarketResult = [
 	'attempted' => false,
 	'saved' => false,
@@ -826,7 +854,7 @@ $electionsInspectResult = [
 	'saved' => false,
 	'reason' => 'not-attempted',
 	'httpStatus' => 0,
-	'url' => 'https://vara.e-sim.org/elections.html?electionType=CONGRESS',
+	'url' => serverUrl('elections.html?electionType=CONGRESS'),
 	'pageTitle' => '',
 	'candidateActionUrl' => '',
 	'options' => [],
@@ -851,7 +879,7 @@ $militaryUnitInspectResult = [
 	'saved' => false,
 	'reason' => 'not-attempted',
 	'httpStatus' => 0,
-	'url' => 'https://vara.e-sim.org/militaryUnit.html?id=37',
+	'url' => serverUrl('militaryUnit.html?id=37'),
 	'unitName' => '',
 	'applyDetected' => false,
 	'applyActionUrl' => '',
@@ -880,7 +908,7 @@ $tutorialMissionCompleteResult = [
 	'attempted' => false,
 	'saved' => false,
 	'reason' => 'not-attempted',
-	'url' => 'https://vara.e-sim.org/betaMissions.html',
+	'url' => serverUrl('betaMissions.html'),
 	'method' => 'POST',
 	'firstHttpStatus' => 0,
 	'secondHttpStatus' => 0,
@@ -892,14 +920,14 @@ $tutorialMissionSkipResult = [
 	'attempted' => false,
 	'saved' => false,
 	'reason' => 'not-attempted',
-	'url' => 'https://vara.e-sim.org/betaMissions.html',
+	'url' => serverUrl('betaMissions.html'),
 	'method' => 'POST',
 	'httpStatus' => 0,
 	'responseSnippet' => '',
 	'error' => '',
 ];
-$productMarketUrl = 'https://vara.e-sim.org/productMarket.html';
-$productMarketOffersBaseUrl = 'https://vara.e-sim.org/productMarketOffers';
+$productMarketUrl = serverUrl('productMarket.html');
+$productMarketOffersBaseUrl = serverUrl('productMarketOffers');
 $productMarketResult = [
 	'attempted' => false,
 	'saved' => false,
@@ -937,7 +965,7 @@ $productMarketBuyResult = [
 	'requestPayload' => [],
 	'error' => '',
 ];
-$gameRoomUrl = 'https://vara.e-sim.org/gameRoom.html';
+$gameRoomUrl = serverUrl('gameRoom.html');
 $banditBlueOpenResult = [
 	'attempted' => false,
 	'saved' => false,
@@ -1006,7 +1034,7 @@ if ($fatalError === '' && !$sessionReused && $loginForm['found']) {
 
 	$postHeaders = [
 		'Content-Type: application/x-www-form-urlencoded',
-		'Origin: https://vara.e-sim.org',
+		'Origin: ' . rtrim(serverUrl(''), '/'),
 		'Referer: ' . (string) $step1['effectiveUrl'],
 	];
 
@@ -1076,7 +1104,7 @@ if ($fatalError === '') {
 					$postFieldsRetry['password'] = $password;
 					$postHeadersRetry = [
 						'Content-Type: application/x-www-form-urlencoded',
-						'Origin: https://vara.e-sim.org',
+						'Origin: ' . rtrim(serverUrl(''), '/'),
 						'Referer: ' . (string) $step1Retry['effectiveUrl'],
 					];
 					$step2Retry = curlRequest($ch, (string) ($loginFormRetry['actionUrl'] ?? ''), [
@@ -1153,7 +1181,7 @@ if ($fatalError === '' && !$sessionReused && !looksAuthenticated((string) $step3
 		$registrationFields = buildAdvancedRegistrationPayload($registrationForm, $username, $password, '26');
 		$registrationPostHeaders = [
 			'Content-Type: application/x-www-form-urlencoded',
-			'Origin: https://vara.e-sim.org',
+			'Origin: ' . rtrim(serverUrl(''), '/'),
 			'Referer: ' . (string) $step1['effectiveUrl'],
 		];
 
@@ -1399,7 +1427,7 @@ if ($fatalError === '' && $leaveJobRequested) {
 
 if ($fatalError === '' && $companyOffersLoadRequested) {
 	$rawCompanyUrl = trim((string) ($_POST['company_url'] ?? ''));
-	$normalizedCompanyUrl = normalizeCompanyPageUrl($rawCompanyUrl, (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'));
+	$normalizedCompanyUrl = normalizeCompanyPageUrl($rawCompanyUrl, (string) ($step3['effectiveUrl'] ?? serverUrl('index.html')));
 
 	$companyOffersResult = [
 		'attempted' => true,
@@ -1445,7 +1473,7 @@ if ($fatalError === '' && $companyOfferApplyRequested) {
 	$actionUrlRaw = trim((string) ($_POST['offer_apply_action_url'] ?? ''));
 	$offerRefererUrl = trim((string) ($_POST['offer_referer_url'] ?? ''));
 	$actionUrl = $actionUrlRaw !== ''
-		? resolveUrl($offerRefererUrl !== '' ? $offerRefererUrl : 'https://vara.e-sim.org/company.html', $actionUrlRaw)
+		? resolveUrl($offerRefererUrl !== '' ? $offerRefererUrl : serverUrl('company.html'), $actionUrlRaw)
 		: '';
 
 	$companyOfferApplyResult = [
@@ -1461,7 +1489,7 @@ if ($fatalError === '' && $companyOfferApplyRequested) {
 	if (preg_match('/^\d+$/', $offerId) && $actionUrl !== '') {
 		$applyStep = submitJobOfferApply(
 			$ch,
-			$offerRefererUrl !== '' ? $offerRefererUrl : (string) ($step3['effectiveUrl'] ?: 'https://vara.e-sim.org/index.html'),
+			$offerRefererUrl !== '' ? $offerRefererUrl : (string) ($step3['effectiveUrl'] ?: serverUrl('index.html')),
 			$headers,
 			$actionUrl,
 			$offerId,
@@ -1664,7 +1692,7 @@ if ($fatalError === '' && $dailiesClaimRequested) {
 
 if ($fatalError === '' && $changeEmailRequested) {
 	$newEmail = trim((string) ($_POST['change_email'] ?? ''));
-	$changeEmailUrl = 'https://vara.e-sim.org/editCitizen.html';
+	$changeEmailUrl = serverUrl('editCitizen.html');
 
 	$changeEmailResult = [
 		'attempted' => true,
@@ -1687,8 +1715,8 @@ if ($fatalError === '' && $changeEmailRequested) {
 			]),
 			CURLOPT_HTTPHEADER => array_merge($headers, [
 				'Content-Type: application/x-www-form-urlencoded',
-				'Origin: https://vara.e-sim.org',
-				'Referer: ' . (string) ($step3['effectiveUrl'] ?: 'https://vara.e-sim.org/index.html'),
+				'Origin: ' . rtrim(serverUrl(''), '/'),
+				'Referer: ' . (string) ($step3['effectiveUrl'] ?: serverUrl('index.html')),
 			]),
 		]);
 
@@ -1716,7 +1744,7 @@ if ($fatalError === '' && $changeEmailRequested) {
 }
 
 if ($fatalError === '' && $resendConfirmationMailRequested) {
-	$resendConfirmationMailUrl = 'https://vara.e-sim.org/resendConfirmationMail.html';
+	$resendConfirmationMailUrl = serverUrl('resendConfirmationMail.html');
 	$resendStep = curlRequest($ch, $resendConfirmationMailUrl, [
 		CURLOPT_POST => false,
 		CURLOPT_HTTPGET => true,
@@ -1767,7 +1795,7 @@ if ($fatalError === '' && $confirmMailCodeRequested) {
 	];
 
 	if ($postedStamp !== '' && $postedCitizenId !== '') {
-		$confirmMailUrl = 'https://vara.e-sim.org/confirmMail.html?' . http_build_query([
+		$confirmMailUrl = serverUrl('confirmMail.html?') . http_build_query([
 			'citizenId' => $postedCitizenId,
 			'stamp' => $postedStamp,
 		]);
@@ -1803,7 +1831,7 @@ if ($fatalError === '' && $confirmMailCodeRequested) {
 }
 
 if ($fatalError === '' && $partyStatusCheckRequested) {
-	$partyUrl = 'https://vara.e-sim.org/myParty.html';
+	$partyUrl = serverUrl('myParty.html');
 	$partyStep = curlRequest($ch, $partyUrl, [
 		CURLOPT_POST => false,
 		CURLOPT_HTTPGET => true,
@@ -1833,7 +1861,7 @@ if ($fatalError === '' && $partyStatusCheckRequested) {
 
 if ($fatalError === '' && $partyInspectRequested) {
 	$partyUrlRaw = trim((string) ($_POST['party_url'] ?? ''));
-	$partyUrl = normalizePartyPageUrl($partyUrlRaw, (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'));
+	$partyUrl = normalizePartyPageUrl($partyUrlRaw, (string) ($step3['effectiveUrl'] ?? serverUrl('index.html')));
 
 	$partyInspectResult = [
 		'attempted' => true,
@@ -1936,7 +1964,7 @@ if ($fatalError === '' && $partyJoinRequested) {
 	if ($joinFieldAction === 'JOIN' && $joinFieldId !== '') {
 		$joinMethod = 'POST';
 		$joinActionUrl = resolveUrl(
-			$joinActionUrl !== '' ? $joinActionUrl : 'https://vara.e-sim.org/partyStatistics.html',
+			$joinActionUrl !== '' ? $joinActionUrl : serverUrl('partyStatistics.html'),
 			'partyStatistics.html'
 		);
 		$joinFields = [
@@ -1971,11 +1999,11 @@ if ($fatalError === '' && $partyJoinRequested) {
 
 		$joinReferer = trim((string) ($_POST['party_url'] ?? ''));
 		if ($joinReferer === '') {
-			$joinReferer = (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html');
+			$joinReferer = (string) ($step3['effectiveUrl'] ?? serverUrl('index.html'));
 		}
 
 		$joinHeaders = array_merge($headers, [
-			'Origin: https://vara.e-sim.org',
+			'Origin: ' . rtrim(serverUrl(''), '/'),
 			'Referer: ' . $joinReferer,
 		]);
 
@@ -2043,7 +2071,7 @@ if ($fatalError === '' && $partyLeaveRequested) {
 	}
 
 	if ($leaveActionUrl === '') {
-		$leaveActionUrl = 'https://vara.e-sim.org/partyStatistics.html';
+		$leaveActionUrl = serverUrl('partyStatistics.html');
 	}
 	$leaveActionUrl = resolveUrl($leaveActionUrl, 'partyStatistics.html');
 	if ($leaveMethod !== 'POST' && $leaveMethod !== 'GET') {
@@ -2056,11 +2084,11 @@ if ($fatalError === '' && $partyLeaveRequested) {
 
 	$leaveReferer = trim((string) ($_POST['party_url'] ?? ''));
 	if ($leaveReferer === '') {
-		$leaveReferer = (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html');
+		$leaveReferer = (string) ($step3['effectiveUrl'] ?? serverUrl('index.html'));
 	}
 
 	$leaveHeaders = array_merge($headers, [
-		'Origin: https://vara.e-sim.org',
+		'Origin: ' . rtrim(serverUrl(''), '/'),
 		'Referer: ' . $leaveReferer,
 	]);
 
@@ -2111,7 +2139,7 @@ if ($fatalError === '' && $partyLeaveRequested) {
 }
 
 if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? ''))) {
-	$registeredEmailUrl = 'https://vara.e-sim.org/editCitizen.html?editCitizenPage=PERSONAL_DATA';
+	$registeredEmailUrl = serverUrl('editCitizen.html?editCitizenPage=PERSONAL_DATA');
 	$registeredEmailStep = curlRequest($ch, $registeredEmailUrl, [
 		CURLOPT_POST => false,
 		CURLOPT_HTTPGET => true,
@@ -2192,7 +2220,7 @@ if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) &&
 		'eqStorageList' => 'true',
 		'page' => $auctionPage !== '' ? $auctionPage : '1',
 	];
-	$auctionUrl = 'https://vara.e-sim.org/auctionAction.html?' . http_build_query($auctionParams);
+	$auctionUrl = serverUrl('auctionAction.html?') . http_build_query($auctionParams);
 
 	$equipmentSellResult = [
 		'attempted' => true,
@@ -2378,7 +2406,7 @@ if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) &&
 
 if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) && $articleInspectRequested) {
 	$articleUrlRaw = trim((string) ($_POST['article_url'] ?? ''));
-	$articleUrl = normalizeArticlePageUrl($articleUrlRaw, (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'));
+	$articleUrl = normalizeArticlePageUrl($articleUrlRaw, (string) ($step3['effectiveUrl'] ?? serverUrl('index.html')));
 
 	$articleInspectResult = [
 		'attempted' => true,
@@ -2441,7 +2469,7 @@ if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) &&
 
 if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) && $electionsInspectRequested) {
 	$electionsUrlRaw = trim((string) ($_POST['elections_url'] ?? ''));
-	$electionsUrl = normalizeElectionsPageUrl($electionsUrlRaw, (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'));
+	$electionsUrl = normalizeElectionsPageUrl($electionsUrlRaw, (string) ($step3['effectiveUrl'] ?? serverUrl('index.html')));
 
 	$electionsInspectResult = [
 		'attempted' => true,
@@ -2489,11 +2517,11 @@ if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) &&
 }
 
 if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) && $electionsCandidateRequested) {
-	$electionsUrl = normalizeElectionsPageUrl(trim((string) ($_POST['elections_url'] ?? '')), (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'));
+	$electionsUrl = normalizeElectionsPageUrl(trim((string) ($_POST['elections_url'] ?? '')), (string) ($step3['effectiveUrl'] ?? serverUrl('index.html')));
 	$candidateActionUrlRaw = trim((string) ($_POST['elections_candidate_action_url'] ?? ''));
 	$candidateActionUrl = $candidateActionUrlRaw !== ''
-		? resolveUrl($electionsUrl !== '' ? $electionsUrl : (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'), $candidateActionUrlRaw)
-		: resolveUrl($electionsUrl !== '' ? $electionsUrl : (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'), 'congressElectionsCandidate');
+		? resolveUrl($electionsUrl !== '' ? $electionsUrl : (string) ($step3['effectiveUrl'] ?? serverUrl('index.html')), $candidateActionUrlRaw)
+		: resolveUrl($electionsUrl !== '' ? $electionsUrl : (string) ($step3['effectiveUrl'] ?? serverUrl('index.html')), 'congressElectionsCandidate');
 	$presentation = trim((string) ($_POST['elections_presentation'] ?? 'http://'));
 	if ($presentation === '') {
 		$presentation = 'http://';
@@ -2501,8 +2529,8 @@ if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) &&
 
 	$candidatePayload = ['presentation' => $presentation];
 	$candidateHeaders = array_merge($headers, [
-		'Origin: https://vara.e-sim.org',
-		'Referer: ' . ($electionsUrl !== '' ? $electionsUrl : (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html')),
+		'Origin: https://' . $server . '.e-sim.org',
+		'Referer: ' . ($electionsUrl !== '' ? $electionsUrl : (string) ($step3['effectiveUrl'] ?? serverUrl('index.html'))),
 		'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
 		'Accept: application/json, text/plain, */*',
 		'X-Requested-With: XMLHttpRequest',
@@ -2545,7 +2573,7 @@ if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) &&
 
 if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) && $militaryUnitInspectRequested) {
 	$militaryUnitUrlRaw = trim((string) ($_POST['military_unit_url'] ?? ''));
-	$militaryUnitUrl = normalizeMilitaryUnitPageUrl($militaryUnitUrlRaw, (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'));
+	$militaryUnitUrl = normalizeMilitaryUnitPageUrl($militaryUnitUrlRaw, (string) ($step3['effectiveUrl'] ?? serverUrl('index.html')));
 
 	$militaryUnitInspectResult = [
 		'attempted' => true,
@@ -2610,7 +2638,7 @@ if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) &&
 }
 
 if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) && $militaryUnitApplyRequested) {
-	$militaryUnitUrl = normalizeMilitaryUnitPageUrl(trim((string) ($_POST['military_unit_url'] ?? '')), (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'));
+	$militaryUnitUrl = normalizeMilitaryUnitPageUrl(trim((string) ($_POST['military_unit_url'] ?? '')), (string) ($step3['effectiveUrl'] ?? serverUrl('index.html')));
 	$applyActionUrlRaw = trim((string) ($_POST['military_unit_apply_action_url'] ?? ''));
 	$applyMethod = strtoupper(trim((string) ($_POST['military_unit_apply_method'] ?? 'POST')));
 	$applyFieldsEncoded = trim((string) ($_POST['military_unit_apply_fields_encoded'] ?? ''));
@@ -2629,16 +2657,16 @@ if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) &&
 	}
 
 	$applyActionUrl = $applyActionUrlRaw !== ''
-		? resolveUrl($militaryUnitUrl !== '' ? $militaryUnitUrl : (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'), $applyActionUrlRaw)
-		: resolveUrl($militaryUnitUrl !== '' ? $militaryUnitUrl : (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'), 'militaryUnitsActions.html');
+		? resolveUrl($militaryUnitUrl !== '' ? $militaryUnitUrl : (string) ($step3['effectiveUrl'] ?? serverUrl('index.html')), $applyActionUrlRaw)
+		: resolveUrl($militaryUnitUrl !== '' ? $militaryUnitUrl : (string) ($step3['effectiveUrl'] ?? serverUrl('index.html')), 'militaryUnitsActions.html');
 
 	if ($applyMethod !== 'POST' && $applyMethod !== 'GET') {
 		$applyMethod = 'POST';
 	}
 
 	$applyHeaders = array_merge($headers, [
-		'Origin: https://vara.e-sim.org',
-		'Referer: ' . ($militaryUnitUrl !== '' ? $militaryUnitUrl : (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html')),
+		'Origin: ' . rtrim(serverUrl(''), '/'),
+		'Referer: ' . ($militaryUnitUrl !== '' ? $militaryUnitUrl : (string) ($step3['effectiveUrl'] ?? serverUrl('index.html'))),
 		'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
 	]);
 
@@ -2687,7 +2715,7 @@ if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) &&
 
 if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) && $articleVoteRequested) {
 	$articleId = preg_replace('/\D+/', '', trim((string) ($_POST['article_id'] ?? '')));
-	$articleUrl = normalizeArticlePageUrl(trim((string) ($_POST['article_url'] ?? '')), (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'));
+	$articleUrl = normalizeArticlePageUrl(trim((string) ($_POST['article_url'] ?? '')), (string) ($step3['effectiveUrl'] ?? serverUrl('index.html')));
 	$voteActionUrl = trim((string) ($_POST['article_vote_action_url'] ?? ''));
 
 	$articleVoteResult = submitArticleVote($ch, $articleUrl, $headers, [
@@ -2698,7 +2726,7 @@ if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) &&
 
 if ($fatalError === '' && looksAuthenticated((string) ($step3['body'] ?? '')) && $articleSubscribeRequested) {
 	$articleId = preg_replace('/\D+/', '', trim((string) ($_POST['article_id'] ?? '')));
-	$articleUrl = normalizeArticlePageUrl(trim((string) ($_POST['article_url'] ?? '')), (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'));
+	$articleUrl = normalizeArticlePageUrl(trim((string) ($_POST['article_url'] ?? '')), (string) ($step3['effectiveUrl'] ?? serverUrl('index.html')));
 	$subscribeActionUrl = trim((string) ($_POST['article_subscribe_action_url'] ?? ''));
 
 	$articleSubscribeResult = submitArticleSubscribe($ch, $articleUrl, $headers, [
@@ -2718,7 +2746,7 @@ if ($fatalError === '' && $banditBlueRunRequested) {
 if ($fatalError === '' && $tutorialMissionCompleteRequested) {
 	$tutorialStateBeforeSubmit = extractTutorialMissionStateFromHtml(
 		(string) ($step3['body'] ?? ''),
-		(string) (($step3['effectiveUrl'] ?? '') !== '' ? $step3['effectiveUrl'] : 'https://vara.e-sim.org/index.html')
+		(string) (($step3['effectiveUrl'] ?? '') !== '' ? $step3['effectiveUrl'] : serverUrl('index.html'))
 	);
 	$completeUrlPosted = trim((string) ($_POST['tutorial_complete_url'] ?? ''));
 	$completeUrlDetected = trim((string) ($tutorialStateBeforeSubmit['rewardActionUrl'] ?? ''));
@@ -2729,7 +2757,7 @@ if ($fatalError === '' && $tutorialMissionCompleteRequested) {
 
 	$completeUrl = $completeUrlPosted !== ''
 		? $completeUrlPosted
-		: ($completeUrlDetected !== '' ? $completeUrlDetected : 'https://vara.e-sim.org/betaMissions.html');
+		: ($completeUrlDetected !== '' ? $completeUrlDetected : serverUrl('betaMissions.html'));
 
 	$tutorialMissionCompleteResult = submitTutorialMissionComplete(
 		$ch,
@@ -2754,7 +2782,7 @@ if ($fatalError === '' && $tutorialMissionCompleteRequested) {
 if ($fatalError === '' && $tutorialMissionSkipRequested) {
 	$tutorialStateBeforeSkip = extractTutorialMissionStateFromHtml(
 		(string) ($step3['body'] ?? ''),
-		(string) (($step3['effectiveUrl'] ?? '') !== '' ? $step3['effectiveUrl'] : 'https://vara.e-sim.org/index.html')
+		(string) (($step3['effectiveUrl'] ?? '') !== '' ? $step3['effectiveUrl'] : serverUrl('index.html'))
 	);
 	$skipUrlPosted = trim((string) ($_POST['tutorial_skip_url'] ?? ''));
 	$skipUrlDetected = trim((string) ($tutorialStateBeforeSkip['skipActionUrl'] ?? ''));
@@ -2765,7 +2793,7 @@ if ($fatalError === '' && $tutorialMissionSkipRequested) {
 
 	$skipUrl = $skipUrlPosted !== ''
 		? $skipUrlPosted
-		: ($skipUrlDetected !== '' ? $skipUrlDetected : 'https://vara.e-sim.org/betaMissions.html');
+		: ($skipUrlDetected !== '' ? $skipUrlDetected : serverUrl('betaMissions.html'));
 
 	$tutorialMissionSkipResult = submitTutorialMissionSkip(
 		$ch,
@@ -2791,7 +2819,7 @@ if ($fatalError === '' && $freeStarterPackOpenRequested) {
 	$promoUrlPosted = trim((string) ($_POST['free_starter_pack_open_url'] ?? ''));
 	$promoUrl = $promoUrlPosted !== ''
 		? $promoUrlPosted
-		: 'https://vara.e-sim.org/shop.html?shopType=PROMOTIONS';
+		: serverUrl('shop.html?shopType=PROMOTIONS');
 
 	$promoStep = curlRequest($ch, $promoUrl, [
 		CURLOPT_POST => false,
@@ -2834,7 +2862,7 @@ if ($fatalError === '' && $freeStarterPackOpenRequested) {
 
 if ($fatalError === '' && $freeStarterPackClaimRequested) {
 	$claimUrlPosted = trim((string) ($_POST['free_starter_pack_claim_url'] ?? ''));
-	$promoUrl = 'https://vara.e-sim.org/shop.html?shopType=PROMOTIONS';
+	$promoUrl = serverUrl('shop.html?shopType=PROMOTIONS');
 	$claimUrl = $claimUrlPosted;
 	$claimRefererUrl = $promoUrl;
 
@@ -3019,7 +3047,7 @@ if ($fatalError === '' && ($productMarketOffersRequested || $productMarketBuyReq
 
 if ($fatalError === '' && $regionTravelLoadRequested) {
 	$rawRegionUrl = trim((string) ($_POST['region_url'] ?? ($_POST['travel_region_select'] ?? '')));
-	$normalizedRegionUrl = normalizeRegionPageUrl($rawRegionUrl, (string) ($step3['effectiveUrl'] ?? 'https://vara.e-sim.org/index.html'));
+	$normalizedRegionUrl = normalizeRegionPageUrl($rawRegionUrl, (string) ($step3['effectiveUrl'] ?? serverUrl('index.html')));
 
 	$regionTravelLookupResult = [
 		'attempted' => true,
@@ -3259,7 +3287,7 @@ if ($fatalError === '' && !($isAsyncActionRequest && ($trainRequested || $workRe
 	];
 
 	for ($battlePage = 1; $battlePage <= $maxBattlePagesToScan; $battlePage++) {
-		$battlePageUrl = 'https://vara.e-sim.org/battles.html?countryId=-1&page=' . $battlePage;
+		$battlePageUrl = serverUrl('battles.html?countryId=-1&page=') . $battlePage;
 		$battlesStep = curlRequest($ch, $battlePageUrl, [
 			CURLOPT_POST => false,
 			CURLOPT_HTTPGET => true,
@@ -3392,7 +3420,7 @@ if ($fatalError === '' && !($isAsyncActionRequest && ($trainRequested || $workRe
 }
 
 if ($fatalError === '' && !$isAsyncActionRequest) {
-	$travelSourceBaseUrl = (string) ($step3['effectiveUrl'] ?: 'https://vara.e-sim.org/index.html');
+	$travelSourceBaseUrl = (string) ($step3['effectiveUrl'] ?: serverUrl('index.html'));
 	$travelCountriesUrl = resolveUrl($travelSourceBaseUrl, 'travel.html');
 	$travelCountriesStep = curlRequest($ch, $travelCountriesUrl, [
 		CURLOPT_POST => false,
@@ -3676,12 +3704,12 @@ $showTrainButton = $authenticated && hasTaskTrainButton($safeBody);
 $showWorkButton = $authenticated && hasTaskWorkButton($safeBody);
 $tutorialMissionState = extractTutorialMissionStateFromHtml(
 	$safeBody,
-	(string) (($step3['effectiveUrl'] ?? '') !== '' ? $step3['effectiveUrl'] : 'https://vara.e-sim.org/index.html')
+	(string) (($step3['effectiveUrl'] ?? '') !== '' ? $step3['effectiveUrl'] : serverUrl('index.html'))
 );
 if (empty($freeStarterPackOpenResult['saved'])) {
 	$freeStarterPackResult = detectFreeStarterPackFromHtml(
 		$safeBody,
-		(string) (($step3['effectiveUrl'] ?? '') !== '' ? $step3['effectiveUrl'] : 'https://vara.e-sim.org/index.html')
+		(string) (($step3['effectiveUrl'] ?? '') !== '' ? $step3['effectiveUrl'] : serverUrl('index.html'))
 	);
 }
 $freeStarterPackProxyClaimUrl = '';
@@ -4137,7 +4165,7 @@ function curlRequest($ch, string $url, array $extraOptions = []): array
 
 function submitLogout($ch, string $refererUrl, array $headers): array
 {
-	$base = $refererUrl !== '' ? $refererUrl : 'https://vara.e-sim.org/index.html';
+	$base = $refererUrl !== '' ? $refererUrl : serverUrl('index.html');
 	$targetUrls = [
 		resolveUrl($base, 'logout.html'),
 		resolveUrl($base, 'logout'),
@@ -4149,7 +4177,7 @@ function submitLogout($ch, string $refererUrl, array $headers): array
 
 	$postHeaders = array_merge($headers, [
 		'Referer: ' . $base,
-		'Origin: https://vara.e-sim.org',
+		'Origin: ' . rtrim(serverUrl(''), '/'),
 	]);
 
 	$lastStep = null;
@@ -4297,7 +4325,7 @@ function runBanditBlueRound($ch, string $refererUrl, array $headers, string $gam
 	$playUrl = resolveUrl($gameRoomUrl, 'bandit/play?automatType=BLUE');
 	$playHeaders = array_merge($headers, [
 		'Referer: ' . $gameRoomUrl,
-		'Origin: https://vara.e-sim.org',
+		'Origin: ' . rtrim(serverUrl(''), '/'),
 		'X-Requested-With: XMLHttpRequest',
 		'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
 	]);
@@ -4329,7 +4357,7 @@ function runBanditBlueRound($ch, string $refererUrl, array $headers, string $gam
 		$rewardUrl = resolveUrl($gameRoomUrl, 'bandit/reward?id=' . rawurlencode($runId));
 		$rewardHeaders = array_merge($headers, [
 			'Referer: ' . $gameRoomUrl,
-			'Origin: https://vara.e-sim.org',
+			'Origin: ' . rtrim(serverUrl(''), '/'),
 			'X-Requested-With: XMLHttpRequest',
 		]);
 		$rewardStep = curlRequest($ch, $rewardUrl, [
@@ -4494,7 +4522,7 @@ function submitTutorialMissionComplete($ch, string $refererUrl, array $headers, 
 {
 	$completeUrl = trim($completeUrl);
 	if ($completeUrl === '') {
-		$completeUrl = 'https://vara.e-sim.org/betaMissions.html';
+		$completeUrl = serverUrl('betaMissions.html');
 	}
 
 	$method = strtoupper(trim($method));
@@ -4510,14 +4538,14 @@ function submitTutorialMissionComplete($ch, string $refererUrl, array $headers, 
 	if ($completeUrlWithoutAction !== '') {
 		$targetUrls[] = $completeUrlWithoutAction;
 	}
-	$targetUrls[] = resolveUrl($refererUrl !== '' ? $refererUrl : 'https://vara.e-sim.org/index.html', 'betaMissions.html');
+	$targetUrls[] = resolveUrl($refererUrl !== '' ? $refererUrl : serverUrl('index.html'), 'betaMissions.html');
 	$targetUrls = array_values(array_unique(array_filter($targetUrls, static function ($url): bool {
 		return is_string($url) && trim($url) !== '';
 	})));
 
 	$requestHeaders = array_merge($headers, [
-		'Referer: ' . ($refererUrl !== '' ? $refererUrl : 'https://vara.e-sim.org/index.html'),
-		'Origin: https://vara.e-sim.org',
+		'Referer: ' . ($refererUrl !== '' ? $refererUrl : serverUrl('index.html')),
+		'Origin: ' . rtrim(serverUrl(''), '/'),
 		'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
 	]);
 
@@ -4632,7 +4660,7 @@ function submitTutorialMissionSkip($ch, string $refererUrl, array $headers, stri
 {
 	$skipUrl = trim($skipUrl);
 	if ($skipUrl === '') {
-		$skipUrl = 'https://vara.e-sim.org/betaMissions.html';
+		$skipUrl = serverUrl('betaMissions.html');
 	}
 
 	$method = strtoupper(trim($method));
@@ -4648,14 +4676,14 @@ function submitTutorialMissionSkip($ch, string $refererUrl, array $headers, stri
 	if ($skipUrlWithoutAction !== '') {
 		$targetUrls[] = $skipUrlWithoutAction;
 	}
-	$targetUrls[] = resolveUrl($refererUrl !== '' ? $refererUrl : 'https://vara.e-sim.org/index.html', 'betaMissions.html');
+	$targetUrls[] = resolveUrl($refererUrl !== '' ? $refererUrl : serverUrl('index.html'), 'betaMissions.html');
 	$targetUrls = array_values(array_unique(array_filter($targetUrls, static function ($url): bool {
 		return is_string($url) && trim($url) !== '';
 	})));
 
 	$requestHeaders = array_merge($headers, [
-		'Referer: ' . ($refererUrl !== '' ? $refererUrl : 'https://vara.e-sim.org/index.html'),
-		'Origin: https://vara.e-sim.org',
+		'Referer: ' . ($refererUrl !== '' ? $refererUrl : serverUrl('index.html')),
+		'Origin: ' . rtrim(serverUrl(''), '/'),
 		'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
 	]);
 
@@ -4738,7 +4766,7 @@ function submitTutorialMissionSkip($ch, string $refererUrl, array $headers, stri
 
 function extractTutorialMissionStateFromHtml(string $html, string $baseUrl): array
 {
-	$normalizedBaseUrl = $baseUrl !== '' ? $baseUrl : 'https://vara.e-sim.org/index.html';
+	$normalizedBaseUrl = $baseUrl !== '' ? $baseUrl : serverUrl('index.html');
 	$result = [
 		'checked' => false,
 		'hasTutorialBallContainer' => false,
@@ -5001,7 +5029,7 @@ function submitAuctionBid($ch, string $refererUrl, array $defaultHeaders, array 
 	$auctionId = preg_replace('/\D+/', '', trim((string) ($bidData['auctionId'] ?? '')));
 	$priceRaw = trim((string) ($bidData['price'] ?? ''));
 	$price = preg_replace('/[^0-9.]/', '', str_replace(',', '.', $priceRaw));
-	$safeReferer = $refererUrl !== '' ? $refererUrl : 'https://vara.e-sim.org/auctions.html';
+	$safeReferer = $refererUrl !== '' ? $refererUrl : serverUrl('auctions.html');
 
 	$result = [
 		'attempted' => true,
@@ -5020,12 +5048,12 @@ function submitAuctionBid($ch, string $refererUrl, array $defaultHeaders, array 
 	}
 
 	$targetUrls = [
-		'https://vara.e-sim.org/auctionAction.html?action=BID&id=' . rawurlencode($auctionId) . '&price=' . rawurlencode($price),
-		'https://vara.e-sim.org/auction.html?id=' . rawurlencode($auctionId) . '&action=BID&price=' . rawurlencode($price),
+		serverUrl('auctionAction.html?action=BID&id=') . rawurlencode($auctionId) . '&price=' . rawurlencode($price),
+		serverUrl('auction.html?id=') . rawurlencode($auctionId) . '&action=BID&price=' . rawurlencode($price),
 	];
 
 	$headers = array_merge($defaultHeaders, [
-		'Origin: https://vara.e-sim.org',
+		'Origin: ' . rtrim(serverUrl(''), '/'),
 		'Referer: ' . $safeReferer,
 		'X-Requested-With: XMLHttpRequest',
 	]);
@@ -5098,14 +5126,21 @@ function submitAuctionBid($ch, string $refererUrl, array $defaultHeaders, array 
 	];
 }
 
-function normalizeArticlePageUrl(string $rawUrl, string $fallbackBaseUrl = 'https://vara.e-sim.org/index.html'): string
+function normalizeArticlePageUrl(string $rawUrl, string $fallbackBaseUrl = ''): string
 {
+	if (trim($fallbackBaseUrl) === '') {
+		$fallbackBaseUrl = serverUrl('index.html');
+	}
+
 	$raw = trim(html_entity_decode($rawUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
 	if ($raw === '') {
 		return '';
 	}
 
-	$host = 'vara.e-sim.org';
+	$host = (string) parse_url(serverUrl('index.html'), PHP_URL_HOST);
+	if ($host === '') {
+		$host = 'vara.e-sim.org';
+	}
 	if (preg_match('/^https?:\/\/([^\/]+)/i', $raw, $hostMatch) === 1) {
 		$candidateHost = strtolower(trim((string) ($hostMatch[1] ?? '')));
 		if (preg_match('/^[a-z0-9.-]+\.e-sim\.org$/', $candidateHost) === 1) {
@@ -5234,11 +5269,11 @@ function submitArticleVote($ch, string $articleUrl, array $defaultHeaders, array
 		$targetUrls[] = $voteActionUrl;
 	}
 	$targetUrls[] = $safeArticleUrl . '&vote=1';
-	$targetUrls[] = 'https://vara.e-sim.org/articleVote.html?id=' . rawurlencode($articleId);
-	$targetUrls[] = 'https://vara.e-sim.org/articleAction.html?action=VOTE&id=' . rawurlencode($articleId);
+	$targetUrls[] = serverUrl('articleVote.html?id=') . rawurlencode($articleId);
+	$targetUrls[] = serverUrl('articleAction.html?action=VOTE&id=') . rawurlencode($articleId);
 
 	$headers = array_merge($defaultHeaders, [
-		'Origin: https://vara.e-sim.org',
+		'Origin: ' . rtrim(serverUrl(''), '/'),
 		'Referer: ' . $safeArticleUrl,
 		'X-Requested-With: XMLHttpRequest',
 	]);
@@ -5314,10 +5349,10 @@ function submitArticleSubscribe($ch, string $articleUrl, array $defaultHeaders, 
 	}
 	$targetUrls[] = $safeArticleUrl . '&subscribe=true';
 	$targetUrls[] = $safeArticleUrl . '&sub=1';
-	$targetUrls[] = 'https://vara.e-sim.org/articleAction.html?action=SUBSCRIBE&id=' . rawurlencode($articleId);
+	$targetUrls[] = serverUrl('articleAction.html?action=SUBSCRIBE&id=') . rawurlencode($articleId);
 
 	$headers = array_merge($defaultHeaders, [
-		'Origin: https://vara.e-sim.org',
+		'Origin: ' . rtrim(serverUrl(''), '/'),
 		'Referer: ' . $safeArticleUrl,
 		'X-Requested-With: XMLHttpRequest',
 	]);
@@ -5366,11 +5401,15 @@ function submitArticleSubscribe($ch, string $articleUrl, array $defaultHeaders, 
 	];
 }
 
-function normalizeElectionsPageUrl(string $rawUrl, string $fallbackBaseUrl = 'https://vara.e-sim.org/index.html'): string
+function normalizeElectionsPageUrl(string $rawUrl, string $fallbackBaseUrl = ''): string
 {
+	if (trim($fallbackBaseUrl) === '') {
+		$fallbackBaseUrl = serverUrl('index.html');
+	}
+
 	$raw = trim(html_entity_decode($rawUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
 	if ($raw === '') {
-		return 'https://vara.e-sim.org/elections.html?electionType=CONGRESS';
+		return serverUrl('elections.html?electionType=CONGRESS');
 	}
 
 	$resolved = preg_match('/^https?:\/\//i', $raw) === 1
@@ -5388,15 +5427,19 @@ function normalizeElectionsPageUrl(string $rawUrl, string $fallbackBaseUrl = 'ht
 	return $resolved;
 }
 
-function normalizeMilitaryUnitPageUrl(string $rawUrl, string $fallbackBaseUrl = 'https://vara.e-sim.org/index.html'): string
+function normalizeMilitaryUnitPageUrl(string $rawUrl, string $fallbackBaseUrl = ''): string
 {
+	if (trim($fallbackBaseUrl) === '') {
+		$fallbackBaseUrl = serverUrl('index.html');
+	}
+
 	$raw = trim(html_entity_decode($rawUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
 	if ($raw === '') {
 		return '';
 	}
 
 	if (preg_match('/^\d+$/', $raw) === 1) {
-		return 'https://vara.e-sim.org/militaryUnit.html?id=' . $raw;
+		return serverUrl('militaryUnit.html?id=') . $raw;
 	}
 
 	$resolved = preg_match('/^https?:\/\//i', $raw) === 1
@@ -5886,12 +5929,12 @@ function hasTaskWorkButton(string $html): bool
 
 function submitTrainTask($ch, string $refererUrl, array $defaultHeaders): array
 {
-	$fallbackRef = 'https://vara.e-sim.org/index.html';
+	$fallbackRef = serverUrl('index.html');
 	$safeReferer = $refererUrl !== '' ? $refererUrl : $fallbackRef;
 	$actionUrl = resolveUrl($safeReferer, 'traIn/ajax');
 	$postHeaders = [
 		'Content-Type: application/x-www-form-urlencoded',
-		'Origin: https://vara.e-sim.org',
+		'Origin: ' . rtrim(serverUrl(''), '/'),
 		'Referer: ' . $safeReferer,
 	];
 
@@ -5934,13 +5977,13 @@ function extractWorkAjaxQueryParams(string $html): string
 
 function submitWorkTask($ch, string $refererUrl, array $defaultHeaders, string $html): array
 {
-	$fallbackRef = 'https://vara.e-sim.org/index.html';
+	$fallbackRef = serverUrl('index.html');
 	$safeReferer = $refererUrl !== '' ? $refererUrl : $fallbackRef;
 	$query = extractWorkAjaxQueryParams($html);
 	$actionUrl = resolveUrl($safeReferer, 'work/ajax?' . $query);
 	$postHeaders = [
 		'Content-Type: application/x-www-form-urlencoded',
-		'Origin: https://vara.e-sim.org',
+		'Origin: ' . rtrim(serverUrl(''), '/'),
 		'Referer: ' . $safeReferer,
 	];
 
@@ -6046,11 +6089,11 @@ function extractWorkplaceInfo(string $html, string $baseUrl): array
 
 function submitLeaveJob($ch, string $refererUrl, array $defaultHeaders, string $actionUrl, array $fields): array
 {
-	$fallbackRef = 'https://vara.e-sim.org/work2.html';
+	$fallbackRef = serverUrl('work2.html');
 	$safeReferer = $refererUrl !== '' ? $refererUrl : $fallbackRef;
 	$postHeaders = [
 		'Content-Type: application/x-www-form-urlencoded',
-		'Origin: https://vara.e-sim.org',
+		'Origin: ' . rtrim(serverUrl(''), '/'),
 		'Referer: ' . $safeReferer,
 	];
 
@@ -6061,14 +6104,21 @@ function submitLeaveJob($ch, string $refererUrl, array $defaultHeaders, string $
 	]);
 }
 
-function normalizeCompanyPageUrl(string $rawUrl, string $fallbackBaseUrl = 'https://vara.e-sim.org/index.html'): string
+function normalizeCompanyPageUrl(string $rawUrl, string $fallbackBaseUrl = ''): string
 {
+	if (trim($fallbackBaseUrl) === '') {
+		$fallbackBaseUrl = serverUrl('index.html');
+	}
+
 	$raw = trim(html_entity_decode($rawUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
 	if ($raw === '') {
 		return '';
 	}
 
-	$host = 'vara.e-sim.org';
+	$host = (string) parse_url(serverUrl('index.html'), PHP_URL_HOST);
+	if ($host === '') {
+		$host = 'vara.e-sim.org';
+	}
 	if (preg_match('/^https?:\/\/([^\/]+)$/i', preg_replace('/\/.*/', '', $raw), $hostMatch) === 1) {
 		$candidateHost = strtolower(trim((string) ($hostMatch[1] ?? '')));
 		if (preg_match('/^[a-z0-9.-]+\.e-sim\.org$/', $candidateHost) === 1) {
@@ -6103,14 +6153,21 @@ function normalizeCompanyPageUrl(string $rawUrl, string $fallbackBaseUrl = 'http
 	return 'https://' . $host . '/company.html?id=' . $id;
 }
 
-function normalizePartyPageUrl(string $rawUrl, string $fallbackBaseUrl = 'https://vara.e-sim.org/index.html'): string
+function normalizePartyPageUrl(string $rawUrl, string $fallbackBaseUrl = ''): string
 {
+	if (trim($fallbackBaseUrl) === '') {
+		$fallbackBaseUrl = serverUrl('index.html');
+	}
+
 	$raw = trim(html_entity_decode($rawUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
 	if ($raw === '') {
 		return '';
 	}
 
-	$host = 'vara.e-sim.org';
+	$host = (string) parse_url(serverUrl('index.html'), PHP_URL_HOST);
+	if ($host === '') {
+		$host = 'vara.e-sim.org';
+	}
 	if (preg_match('/^https?:\/\/([^\/]+)/i', $raw, $hostMatch) === 1) {
 		$candidateHost = strtolower(trim((string) ($hostMatch[1] ?? '')));
 		if (preg_match('/^[a-z0-9.-]+\.e-sim\.org$/', $candidateHost) === 1) {
@@ -6319,14 +6376,22 @@ function extractPartyJoinAvailabilityFromHtml(string $html, string $baseUrl): ar
 	return $result;
 }
 
-function normalizeRegionPageUrl(string $rawUrl, string $fallbackBaseUrl = 'https://vara.e-sim.org/index.html'): string
+function normalizeRegionPageUrl(string $rawUrl, string $fallbackBaseUrl = ''): string
 {
+	if (trim($fallbackBaseUrl) === '') {
+		$fallbackBaseUrl = serverUrl('index.html');
+	}
+
 	$raw = trim(html_entity_decode($rawUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
 	if ($raw === '') {
 		return '';
 	}
 
-	$host = 'vara.e-sim.org';
+	global $server;
+	$host = (string) parse_url(serverUrl('index.html'), PHP_URL_HOST);
+	if ($host === '') {
+		$host = 'vara.e-sim.org';
+	}
 	if (preg_match('/^https?:\/\/([^\/]+)/i', $raw, $hostMatch) === 1) {
 		$candidateHost = strtolower(trim((string) ($hostMatch[1] ?? '')));
 		if (preg_match('/^[a-z0-9.-]+\.e-sim\.org$/', $candidateHost) === 1) {
@@ -6584,7 +6649,7 @@ function extractCompanyJobOffersFromCompanyHtml(string $html, string $baseUrl): 
 
 function submitJobOfferApply($ch, string $refererUrl, array $defaultHeaders, string $actionUrl, string $offerId, string $countryId = ''): array
 {
-	$fallbackRef = 'https://vara.e-sim.org/jobMarket.html';
+	$fallbackRef = serverUrl('jobMarket.html');
 	$safeReferer = $refererUrl !== '' ? $refererUrl : $fallbackRef;
 
 	$targetUrl = $actionUrl;
@@ -6599,7 +6664,7 @@ function submitJobOfferApply($ch, string $refererUrl, array $defaultHeaders, str
 
 	$postHeaders = [
 		'Content-Type: application/x-www-form-urlencoded',
-		'Origin: https://vara.e-sim.org',
+		'Origin: ' . rtrim(serverUrl(''), '/'),
 		'Referer: ' . $safeReferer,
 		'Accept: application/json, text/plain, */*',
 	];
@@ -6613,12 +6678,12 @@ function submitJobOfferApply($ch, string $refererUrl, array $defaultHeaders, str
 
 function submitConsumableTask($ch, string $refererUrl, array $defaultHeaders, string $actionPath, string $quality): array
 {
-	$fallbackRef = 'https://vara.e-sim.org/index.html';
+	$fallbackRef = serverUrl('index.html');
 	$safeReferer = $refererUrl !== '' ? $refererUrl : $fallbackRef;
 	$actionUrl = resolveUrl($safeReferer, $actionPath);
 	$postHeaders = [
 		'Content-Type: application/x-www-form-urlencoded',
-		'Origin: https://vara.e-sim.org',
+		'Origin: ' . rtrim(serverUrl(''), '/'),
 		'Referer: ' . $safeReferer,
 		'Accept: application/json, text/plain, */*',
 	];
@@ -6632,11 +6697,11 @@ function submitConsumableTask($ch, string $refererUrl, array $defaultHeaders, st
 
 function submitTravelTask($ch, string $refererUrl, array $defaultHeaders, string $actionUrl, array $payload): array
 {
-	$fallbackRef = 'https://vara.e-sim.org/index.html';
+	$fallbackRef = serverUrl('index.html');
 	$safeReferer = $refererUrl !== '' ? $refererUrl : $fallbackRef;
 	$postHeaders = [
 		'Content-Type: application/x-www-form-urlencoded',
-		'Origin: https://vara.e-sim.org',
+		'Origin: ' . rtrim(serverUrl(''), '/'),
 		'Referer: ' . $safeReferer,
 		'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
 	];
@@ -6798,8 +6863,9 @@ function resolveUrl(string $baseUrl, string $url): string
 
 function extractHostFromUrl(string $url): string
 {
+	global $server;
 	$parts = parse_url($url);
-	return (string) ($parts['host'] ?? 'vara.e-sim.org');
+	return (string) ($parts['host'] ?? $server . '.e-sim.org');
 }
 
 function looksAuthenticated(string $html): bool
@@ -6848,7 +6914,7 @@ function extractLoggedPlayerInfo(string $html): array
 		$info['name'] = trim($nameNode->textContent);
 		$href = trim((string) $nameNode->getAttribute('href'));
 		if ($href !== '') {
-			$info['profileUrl'] = resolveUrl('https://vara.e-sim.org/index.html', $href);
+			$info['profileUrl'] = resolveUrl(serverUrl('index.html'), $href);
 			if (preg_match('/[?&]id=(\d+)/i', $href, $m)) {
 				$info['citizenId'] = (string) $m[1];
 			}
@@ -7061,7 +7127,7 @@ function extractAvailableBattles(string $html, string $baseUrl): array
 				continue;
 			}
 
-			$url = resolveUrl($baseUrl !== '' ? $baseUrl : 'https://vara.e-sim.org/index.html', $hrefRaw);
+			$url = resolveUrl($baseUrl !== '' ? $baseUrl : serverUrl('index.html'), $hrefRaw);
 			if (isset($seen[$url])) {
 				continue;
 			}
@@ -7118,7 +7184,7 @@ function extractAvailableBattles(string $html, string $baseUrl): array
 			continue;
 		}
 
-		$url = resolveUrl($baseUrl !== '' ? $baseUrl : 'https://vara.e-sim.org/index.html', $hrefRaw);
+		$url = resolveUrl($baseUrl !== '' ? $baseUrl : serverUrl('index.html'), $hrefRaw);
 		if (isset($seen[$url])) {
 			continue;
 		}
@@ -7302,7 +7368,7 @@ function extractNotificationsListFromHtml(string $html, string $baseUrl): array
 			if ($messageLinkNode instanceof DOMElement) {
 				$href = trim((string) $messageLinkNode->getAttribute('href'));
 				if ($href !== '' && $href !== '#') {
-					$linkUrl = resolveUrl($baseUrl !== '' ? $baseUrl : 'https://vara.e-sim.org/notifications', $href);
+					$linkUrl = resolveUrl($baseUrl !== '' ? $baseUrl : serverUrl('notifications'), $href);
 				}
 			}
 
@@ -7372,7 +7438,7 @@ function extractNotificationsListFromHtml(string $html, string $baseUrl): array
 			if ($linkNode instanceof DOMElement) {
 				$href = trim((string) $linkNode->getAttribute('href'));
 				if ($href !== '' && $href !== '#') {
-					$linkUrl = resolveUrl($baseUrl !== '' ? $baseUrl : 'https://vara.e-sim.org/notifications', $href);
+					$linkUrl = resolveUrl($baseUrl !== '' ? $baseUrl : serverUrl('notifications'), $href);
 				}
 			}
 
@@ -7432,7 +7498,7 @@ function extractDailiesFromHtml(string $html, string $baseUrl): array
 	libxml_clear_errors();
 	$xpath = new DOMXPath($dom);
 
-	$normalizedBaseUrl = $baseUrl !== '' ? $baseUrl : 'https://vara.e-sim.org/missionCenter/dailies';
+	$normalizedBaseUrl = $baseUrl !== '' ? $baseUrl : serverUrl('missionCenter/dailies');
 	$nodes = $xpath->query('//div[starts-with(@id,"daily_") and contains(concat(" ", normalize-space(@class), " "), " daily ")]');
 	$items = [];
 	$seen = [];
@@ -7549,7 +7615,7 @@ function extractDailiesFromHtml(string $html, string $baseUrl): array
 
 function extractDailiesFromJsonPayload(string $html, string $baseUrl): array
 {
-	$normalizedBaseUrl = $baseUrl !== '' ? $baseUrl : 'https://vara.e-sim.org/missionCenter/dailies';
+	$normalizedBaseUrl = $baseUrl !== '' ? $baseUrl : serverUrl('missionCenter/dailies');
 	$defaultClaimUrl = resolveUrl($normalizedBaseUrl, 'missionCenter/dailies');
 	$items = [];
 
@@ -7605,7 +7671,7 @@ function extractDailiesFromJsonPayload(string $html, string $baseUrl): array
 			'isCompleted' => $isCompleted,
 			'buttonText' => $status === 'UNCLAIMED' ? 'Reclamar' : ($status === 'FINISHED' ? 'Completada' : 'Ir'),
 			'isClaimable' => $isClaimable,
-			'claimUrl' => $dailyId !== '' ? ('https://vara.e-sim.org/missionCenter/claimDailyReward?id=' . rawurlencode($dailyId)) : $defaultClaimUrl,
+			'claimUrl' => $dailyId !== '' ? (serverUrl('missionCenter/claimDailyReward?id=') . rawurlencode($dailyId)) : $defaultClaimUrl,
 			'className' => 'daily-json ' . strtolower($status),
 			'rewards' => $rewards,
 		];
@@ -7732,7 +7798,7 @@ function extractBalancedJsonFragment(string $source, int $startPos, string $open
 function submitDailyMissionClaim($ch, string $refererUrl, array $defaultHeaders, string $claimUrl, string $dailyId = ''): array
 {
 	$dailyId = preg_replace('/\D+/', '', trim($dailyId));
-	$safeReferer = trim($refererUrl) !== '' ? trim($refererUrl) : 'https://vara.e-sim.org/missionCenter/dailies';
+	$safeReferer = trim($refererUrl) !== '' ? trim($refererUrl) : serverUrl('missionCenter/dailies');
 
 	$result = [
 		'attempted' => true,
@@ -7751,7 +7817,7 @@ function submitDailyMissionClaim($ch, string $refererUrl, array $defaultHeaders,
 		return $result;
 	}
 
-	$exactClaimUrl = 'https://vara.e-sim.org/missionCenter/claimDailyReward?id=' . rawurlencode($dailyId);
+	$exactClaimUrl = serverUrl('missionCenter/claimDailyReward?id=') . rawurlencode($dailyId);
 	$exactGetStep = curlRequest($ch, $exactClaimUrl, [
 		CURLOPT_POST => false,
 		CURLOPT_HTTPGET => true,
@@ -8019,7 +8085,7 @@ function parseStorageEquipmentItemNode(DOMXPath $xpath, DOMElement $itemNode, st
 	$compactText = compactNodeText((string) $itemNode->textContent);
 	$detailLinkNode = $xpath->query('.//a[contains(@href, "showEquipment.html")][1]', $itemNode)->item(0);
 	$detailUrlRaw = $detailLinkNode instanceof DOMElement ? trim((string) $detailLinkNode->getAttribute('href')) : '';
-	$detailUrl = $detailUrlRaw !== '' ? resolveUrl('https://vara.e-sim.org/storage.html?storageType=EQUIPMENT', $detailUrlRaw) : '';
+	$detailUrl = $detailUrlRaw !== '' ? resolveUrl(serverUrl('storage.html?storageType=EQUIPMENT'), $detailUrlRaw) : '';
 
 	$itemId = '';
 	if ($detailUrlRaw !== '' && preg_match('/[?&]id=(\d+)/', $detailUrlRaw, $idMatch) === 1) {
@@ -8172,7 +8238,7 @@ function submitProductMarketBuy($ch, string $refererUrl, array $defaultHeaders, 
 	$offerId = trim((string) ($offerData['offerId'] ?? ''));
 	$quantity = trim((string) ($offerData['quantity'] ?? '1'));
 	$currencyId = trim((string) ($offerData['currencyId'] ?? ''));
-	$safeReferer = $refererUrl !== '' ? $refererUrl : 'https://vara.e-sim.org/productMarket.html';
+	$safeReferer = $refererUrl !== '' ? $refererUrl : serverUrl('productMarket.html');
 
 	$result = [
 		'attempted' => true,
@@ -8206,7 +8272,7 @@ function submitProductMarketBuy($ch, string $refererUrl, array $defaultHeaders, 
 
 	$postHeaders = [
 		'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
-		'Origin: https://vara.e-sim.org',
+		'Origin: ' . rtrim(serverUrl(''), '/'),
 		'Referer: ' . $safeReferer,
 		'X-Requested-With: XMLHttpRequest',
 	];
@@ -8288,7 +8354,7 @@ function submitProductMarketBuy($ch, string $refererUrl, array $defaultHeaders, 
 
 function detectFreeStarterPackFromHtml(string $html, string $baseUrl): array
 {
-	$normalizedBaseUrl = $baseUrl !== '' ? $baseUrl : 'https://vara.e-sim.org/index.html';
+	$normalizedBaseUrl = $baseUrl !== '' ? $baseUrl : serverUrl('index.html');
 	$result = [
 		'checked' => false,
 		'found' => false,
@@ -8555,7 +8621,7 @@ function extractProductMarketOffersFromHtml(string $html, string $baseUrl): arra
 		if ($linkNode instanceof DOMElement) {
 			$href = trim((string) $linkNode->getAttribute('href'));
 			if ($href !== '' && $href !== '#') {
-				$mainLinkUrl = resolveUrl($baseUrl !== '' ? $baseUrl : 'https://vara.e-sim.org/productMarket.html', $href);
+				$mainLinkUrl = resolveUrl($baseUrl !== '' ? $baseUrl : serverUrl('productMarket.html'), $href);
 			}
 		}
 
@@ -9372,7 +9438,7 @@ function fetchCountryRegionsStep($ch, array $defaultHeaders, string $baseUrl, st
 	$endpointUrl = resolveUrl($baseUrl, 'countryRegions.html');
 	$postHeaders = [
 		'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
-		'Origin: https://vara.e-sim.org',
+		'Origin: ' . rtrim(serverUrl(''), '/'),
 		'Referer: ' . resolveUrl($baseUrl, 'travel.html'),
 		'X-Requested-With: XMLHttpRequest',
 	];
@@ -9418,9 +9484,11 @@ function extractOccupiedByFromOccupationText(string $occupationText): string
 
 function loadRegionsManualCatalog(string $path, string $serverHost): array
 {
+	global $server;
+
 	$default = [
 		'generatedAt' => gmdate('c'),
-		'server' => $serverHost !== '' ? $serverHost : 'vara.e-sim.org',
+		'server' => $serverHost !== '' ? $serverHost : $server . '.e-sim.org',
 		'countryCount' => 0,
 		'regionCount' => 0,
 		'countries' => [],
@@ -10060,11 +10128,11 @@ function extractUrlFromJsString(string $source, string $baseUrl): string
 
 function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $defaultHeaders, array $payload = []): array
 {
-	$fallbackRef = 'https://vara.e-sim.org/index.html';
+	$fallbackRef = serverUrl('index.html');
 	$safeReferer = $refererUrl !== '' ? $refererUrl : $fallbackRef;
 	$postHeaders = [
 		'Content-Type: application/x-www-form-urlencoded',
-		'Origin: https://vara.e-sim.org',
+		'Origin: ' . rtrim(serverUrl(''), '/'),
 		'Referer: ' . $safeReferer,
 	];
 	$postBody = $payload ? http_build_query($payload) : '';
@@ -10632,7 +10700,7 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 							type="url"
 							name="company_url"
 							required
-							placeholder="https://vara.e-sim.org/company.html?id=1609"
+							placeholder="<?= htmlspecialchars(serverUrl('company.html?id=1609'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
 							value="<?= htmlspecialchars($companyUrlInputValue, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
 							style="min-width:320px;flex:1;padding:6px 8px;border:1px solid #c9c9c9;border-radius:6px;"
 						>
@@ -10709,25 +10777,25 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
 			<input type="hidden" name="action" value="resend-confirmation-mail">
 			<button type="submit" class="train-button">Solicitar correo de confirmacion</button>
-			<span class="section-meta">GET: https://vara.e-sim.org/resendConfirmationMail.html</span>
+			<span class="section-meta">GET: <?= htmlspecialchars(serverUrl('resendConfirmationMail.html'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
 		</form>
 
 		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
 			<input type="hidden" name="action" value="party-status-check">
 			<button type="submit" class="train-button">Validar estado de partido</button>
-			<span class="section-meta">GET: https://vara.e-sim.org/myParty.html</span>
+			<span class="section-meta">GET: <?= htmlspecialchars(serverUrl('myParty.html'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
 		</form>
 
 		<?php
 		$partyInspectUrlInput = trim((string) ($_POST['party_url'] ?? ''));
 		if ($partyInspectUrlInput === '') {
-			$partyInspectUrlInput = 'https://vara.e-sim.org/party.html?id=166';
+			$partyInspectUrlInput = serverUrl('party.html?id=166');
 		}
 		?>
 		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
 			<input type="hidden" name="action" value="party-inspect-url">
 			<label for="party_url_input"><strong>URL partido:</strong></label>
-			<input id="party_url_input" type="url" name="party_url" value="<?= htmlspecialchars($partyInspectUrlInput, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="https://vara.e-sim.org/party.html?id=16" required style="min-width:360px;padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
+			<input id="party_url_input" type="url" name="party_url" value="<?= htmlspecialchars($partyInspectUrlInput, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="<?= htmlspecialchars(serverUrl('party.html?id=16'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" required style="min-width:360px;padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
 			<button type="submit" class="train-button">Inspeccionar partido</button>
 		</form>
 
@@ -10755,7 +10823,7 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 			<label for="confirm_mail_code_input"><strong>Codigo confirmacion:</strong></label>
 			<input id="confirm_mail_code_input" type="text" name="confirm_mail_code" value="<?= htmlspecialchars($confirmCodeInputValue, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="Pegue aqui el stamp" required style="min-width:280px;padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
 			<button type="submit" class="train-button">Confirmar correo</button>
-			<span class="section-meta">GET: https://vara.e-sim.org/confirmMail.html?citizenId=<?= htmlspecialchars($confirmCitizenIdPreview, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>&stamp=CODE</span>
+			<span class="section-meta">GET: <?= htmlspecialchars(serverUrl('confirmMail.html'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>?citizenId=<?= htmlspecialchars($confirmCitizenIdPreview, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>&stamp=CODE</span>
 		</form>
 
 		<?php if (!empty($changeEmailResult['attempted'])): ?>
@@ -10934,13 +11002,13 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 		<?php
 		$articleUrlInput = trim((string) ($_POST['article_url'] ?? ''));
 		if ($articleUrlInput === '') {
-			$articleUrlInput = 'https://vara.e-sim.org/article.html?id=79';
+			$articleUrlInput = serverUrl('article.html?id=79');
 		}
 		?>
 		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
 			<input type="hidden" name="action" value="article-inspect-url">
 			<label for="article_url_input"><strong>URL articulo:</strong></label>
-			<input id="article_url_input" type="url" name="article_url" value="<?= htmlspecialchars($articleUrlInput, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="https://vara.e-sim.org/article.html?id=79" required style="min-width:360px;padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
+			<input id="article_url_input" type="url" name="article_url" value="<?= htmlspecialchars($articleUrlInput, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="<?= htmlspecialchars(serverUrl('article.html?id=79'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" required style="min-width:360px;padding:6px 8px;border:1px solid #c7d5ea;border-radius:8px;">
 			<button type="submit" class="train-button">Inspeccionar articulo</button>
 		</form>
 
@@ -11022,7 +11090,7 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 		<?php
 		$electionsUrlInput = trim((string) ($_POST['elections_url'] ?? ''));
 		if ($electionsUrlInput === '') {
-			$electionsUrlInput = 'https://vara.e-sim.org/elections.html?electionType=CONGRESS';
+			$electionsUrlInput = serverUrl('elections.html?electionType=CONGRESS');
 		}
 		?>
 		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
@@ -11121,7 +11189,7 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 		<?php
 		$militaryUnitUrlInput = trim((string) ($_POST['military_unit_url'] ?? ''));
 		if ($militaryUnitUrlInput === '') {
-			$militaryUnitUrlInput = 'https://vara.e-sim.org/militaryUnit.html?id=37';
+			$militaryUnitUrlInput = serverUrl('militaryUnit.html?id=37');
 		}
 		?>
 		<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
@@ -11598,13 +11666,13 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 		$inProgressDescription = trim((string) ($tutorialMissionState['inProgressDescription'] ?? ''));
 		$inProgressSummary = trim((string) ($tutorialMissionState['inProgressSummary'] ?? ''));
 		$hasRewardMissionForm = !empty($tutorialMissionState['hasRewardMissionForm']);
-		$rewardActionUrl = trim((string) ($tutorialMissionState['rewardActionUrl'] ?? 'https://vara.e-sim.org/betaMissions.html'));
+		$rewardActionUrl = trim((string) ($tutorialMissionState['rewardActionUrl'] ?? serverUrl('betaMissions.html')));
 		$rewardMethod = strtoupper(trim((string) ($tutorialMissionState['rewardMethod'] ?? 'POST')));
 		if (!in_array($rewardMethod, ['POST', 'GET'], true)) {
 			$rewardMethod = 'POST';
 		}
 		$hasSkipOption = !empty($tutorialMissionState['hasSkipOption']);
-		$skipActionUrl = trim((string) ($tutorialMissionState['skipActionUrl'] ?? 'https://vara.e-sim.org/betaMissions.html'));
+		$skipActionUrl = trim((string) ($tutorialMissionState['skipActionUrl'] ?? serverUrl('betaMissions.html')));
 		$skipMethod = strtoupper(trim((string) ($tutorialMissionState['skipMethod'] ?? 'POST')));
 		if (!in_array($skipMethod, ['POST', 'GET'], true)) {
 			$skipMethod = 'POST';
@@ -11744,7 +11812,7 @@ function submitBattleAction($ch, string $actionUrl, string $refererUrl, array $d
 		<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
 			<form method="post" style="margin:0;display:inline-flex;align-items:center;">
 				<input type="hidden" name="action" value="free-starter-pack-open">
-				<input type="hidden" name="free_starter_pack_open_url" value="<?= htmlspecialchars((string) ($freeStarterPackResult['openUrl'] ?? 'https://vara.e-sim.org/shop.html?shopType=PROMOTIONS'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+				<input type="hidden" name="free_starter_pack_open_url" value="<?= htmlspecialchars((string) ($freeStarterPackResult['openUrl'] ?? serverUrl('shop.html?shopType=PROMOTIONS')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
 				<button type="submit" class="train-button">Abrir promociones (cURL)</button>
 			</form>
 			<?php if ($freeStarterFound && $freeStarterPackProxyClaimUrl !== ''): ?>
